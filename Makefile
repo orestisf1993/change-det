@@ -1,10 +1,16 @@
+OPTI = -m64 -O3 -fno-exceptions
+WARN = -Wextra -Wall -Wpointer-arith -Wformat -Wfloat-equal -Winit-self \
+-Wcast-qual -Wwrite-strings -Wshadow -Wstrict-prototypes -Wundef -Wunreachable-code
 
-all:
-	gcc -O3 -Wall -Wextra pace.c -lpthread
+TARGET = pace
+
+all: $(TARGET)
+
+$(TARGET): $(TARGET).c
+	gcc $(OPTI) $(WARN) $^ -lpthread -o $@ 
 
 clean:
-	rm -f a.out
+	rm -f $(TARGET)
 
 run: all
-	./a.out 10
-
+	./$(TARGET) 10

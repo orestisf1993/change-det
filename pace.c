@@ -15,9 +15,12 @@
 #include <time.h>
 
 #define ALARM_TIME 20
+#define TIME_MULTIPLIER 100000
+#define UNUSED(x) ((void) x)
 
 void exitfunc(int sig)
 {
+    UNUSED(sig);
     _exit(0);
 }
 
@@ -70,7 +73,8 @@ int main(int argc, char **argv)
 
 void *SensorSignalReader (void *arg)
 {
-
+    UNUSED(arg);
+    
     char buffer[30];
     struct timeval tv;
     time_t curtime;
@@ -78,8 +82,10 @@ void *SensorSignalReader (void *arg)
     srand(time(NULL));
 
     while (1) {
-        int t = rand() % 10 + 1; // wait up to 1 sec in 10ths
-        usleep(t * 100000);
+        // t in [1, 10]
+        int t = rand() % 10 + 1;
+        // wait 0.1 to 1 secs
+        usleep(t * TIME_MULTIPLIER);
 
         int r = rand() % N;
         signalArray[r] ^= 1;
@@ -96,6 +102,8 @@ void *SensorSignalReader (void *arg)
 
 void *ChangeDetector (void *arg)
 {
+    UNUSED(arg);
+    
     char buffer[30];
     struct timeval tv;
     time_t curtime;

@@ -47,3 +47,6 @@
 *.png
 *.plt
 *.cvdata
+
+# Explicit binaries
+pace
