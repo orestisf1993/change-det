@@ -1,0 +1,49 @@
+# Object files
+*.o
+*.ko
+*.obj
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Libraries
+*.lib
+*.a
+*.la
+*.lo
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# Compressed Files
+*.tar.*
+*.tar
+
+# Text/Log Files
+*.txt
+*.swp
+*.log
+*.pdf
+*.bin
+
+# Python
+*.pyc
+.ropeproject/
+
+# Images
+*.png
+*.plt
+*.cvdata
