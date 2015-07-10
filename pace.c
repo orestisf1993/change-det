@@ -35,8 +35,6 @@ int main(int argc, char **argv)
 {
     int i;
 
-    N = atoi(argv[1]);
-
     // usage prompt and exit
     if (argc != 2) {
         printf("Usage: %s N\n"
@@ -46,6 +44,8 @@ int main(int argc, char **argv)
 
         return 1;
     }
+
+    N = atoi(argv[1]);
 
     // set a timed signal to terminate the program
     signal(SIGALRM, exitfunc);
@@ -74,7 +74,7 @@ int main(int argc, char **argv)
 void *SensorSignalReader (void *arg)
 {
     UNUSED(arg);
-    
+
     char buffer[30];
     struct timeval tv;
     time_t curtime;
@@ -103,7 +103,7 @@ void *SensorSignalReader (void *arg)
 void *ChangeDetector (void *arg)
 {
     UNUSED(arg);
-    
+
     char buffer[30];
     struct timeval tv;
     time_t curtime;
