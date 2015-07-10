@@ -18,12 +18,6 @@
 #define TIME_MULTIPLIER 2000
 #define UNUSED(x) ((void) x)
 
-void exitfunc(int sig)
-{
-    UNUSED(sig);
-    _exit(0);
-}
-
 typedef struct {
     unsigned int tid;
 } parm;
@@ -79,8 +73,8 @@ int main(int argc, char **argv)
         total_N = N;
     }
 
-    printf("open threads: %d array elements: %d\n", open_threads, total_N);
-    printf("use_bitfields: %d use_multis: %d\n", use_bitfields, use_multis);
+    fprintf(stderr, "open threads: %d array elements: %d\n", open_threads, total_N);
+    fprintf(stderr, "use_bitfields: %d use_multis: %d\n", use_bitfields, use_multis);
 
     // Allocate signal, time-stamp arrays and thread handles
     signalArray = calloc(total_N, sizeof(int));
@@ -91,20 +85,21 @@ int main(int argc, char **argv)
     pthread_t sigGen;
     pthread_t *sigDet = malloc(open_threads * sizeof(pthread_t));
 
-    // set a timed signal to terminate the program
-    signal(SIGALRM, exitfunc);
-    alarm(EXECUTION_TIME); // after EXECUTION_TIME sec
-
     for (int i = 0; i < open_threads; i++) {
         p[i].tid = i;
         pthread_create (&sigDet[i], NULL, target_function, (void *) &p[i]);
     }
 
     pthread_create (&sigGen, NULL, SensorSignalReader, NULL);
+    // sleep EXECUTION_TIME seconds and then cancel all threads
+    // solves some problems with stdout redirection
+    sleep(EXECUTION_TIME);
 
     // wait here until the signal - code never reaches this point
-    for (int i = 0; i < N; i++)
-        pthread_join (sigDet[i], NULL);
+    for (int i = 0; i < open_threads; i++)
+        pthread_cancel (sigDet[i]);
+
+    pthread_cancel (sigGen);
 
     return 0;
 }
@@ -124,7 +119,7 @@ int toggle_signal(int r)
         gettimeofday(&timeStamp[r], NULL);
         signalArray[r] ^= 1;
         return signalArray[r];
-    }    
+    }
 }
 
 void *SensorSignalReader (void *arg)
@@ -179,7 +174,7 @@ void *ChangeDetector (void *arg)
         // ~ printf("Detcted %5d at Time %s%ld after %ld.%06ld sec\n", target, buffer, tv.tv_usec,
         // ~ tv.tv_sec - timeStamp[target].tv_sec,
         // ~ tv.tv_usec - timeStamp[target].tv_usec);
-        printf("D %d %lu\n", 0, (tv.tv_sec) * 1000000 + (tv.tv_usec));
+        printf("D %d %lu\n", target, (tv.tv_sec) * 1000000 + (tv.tv_usec));
 
         while (signalArray[target] == 1) {}
     }
@@ -293,7 +288,6 @@ void *BitfieldChangeDetector (void *arg)
         // ~ tv.tv_sec - timeStamp[actual].tv_sec,
         // ~ tv.tv_usec - timeStamp[actual].tv_usec,
         // ~ tid);
-        //TODO: fix time overflow error
         printf("D %d %lu\n", actual,
                // ~ (tv.tv_sec - timeStamp[actual].tv_sec)*1000000 + (tv.tv_usec - timeStamp[actual].tv_usec),
                (tv.tv_sec) * 1000000 + (tv.tv_usec)

@@ -3,6 +3,8 @@
 with open('out.log') as f:
     s = f.read()
 l = s.split('\n')
+# remove empty lines
+l = list(filter(bool, l))
 
 # If the execution was cut before a signal detection, delete the last line
 if (len(l) % 2):
