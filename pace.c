@@ -14,7 +14,7 @@
 #include <sys/time.h>
 #include <time.h>
 
-#define ALARM_TIME 20
+#define EXECUTION_TIME 20
 #define TIME_MULTIPLIER 100000
 #define UNUSED(x) ((void) x)
 
@@ -24,17 +24,24 @@ void exitfunc(int sig)
     _exit(0);
 }
 
+typedef struct {
+    unsigned int tid;
+} parm;
+
 volatile int *signalArray;
+volatile int *oldValues;
 struct timeval *timeStamp;
 int N;
 
+#define NTHREADS 5
+#define CHUNK (N / NTHREADS)
+
 void *SensorSignalReader (void *args);
 void *ChangeDetector (void *args);
+void *MultiChangeDetector (void *arg);
 
 int main(int argc, char **argv)
 {
-    int i;
-
     N = atoi(argv[1]);
 
     // usage prompt and exit
@@ -49,23 +56,44 @@ int main(int argc, char **argv)
 
     // set a timed signal to terminate the program
     signal(SIGALRM, exitfunc);
-    alarm(ALARM_TIME); // after ALARM_TIME sec
+    alarm(EXECUTION_TIME); // after EXECUTION_TIME sec
 
     // Allocate signal, time-stamp arrays and thread handles
     signalArray = malloc(N * sizeof(int));
+    oldValues = malloc(N * sizeof(int));
     timeStamp = malloc(N * sizeof(struct timeval));
 
     pthread_t sigGen;
-    pthread_t sigDet;
+    pthread_t *sigDet;
 
-    for (i = 0; i < N; i++)
+    for (int i = 0; i < N; i++) {
         signalArray[i] = 0;
+        oldValues[i] = 0;
+    }
 
-    pthread_create (&sigDet, NULL, ChangeDetector, NULL);
+    parm *p = malloc (N * sizeof(parm));
+    void *(*target_function)(void *);
+
+    int open_threads;
+    if (N > NTHREADS) {
+        target_function = MultiChangeDetector;
+        open_threads = NTHREADS;
+    } else {
+        target_function = ChangeDetector;
+        open_threads = N;
+    }
+    sigDet = malloc(open_threads * sizeof(pthread_t));
+
+    for (int i = 0; i < open_threads; i++) {
+        p[i].tid = i;
+        pthread_create (&sigDet[i], NULL, target_function, (void *) &p[i]);
+    }
+
     pthread_create (&sigGen, NULL, SensorSignalReader, NULL);
 
     // wait here until the signal - code never reaches this point
-    pthread_join (sigDet, NULL);
+    for (int i = 0; i < N; i++)
+        pthread_join (sigDet[i], NULL);
 
     return 0;
 }
@@ -74,7 +102,7 @@ int main(int argc, char **argv)
 void *SensorSignalReader (void *arg)
 {
     UNUSED(arg);
-    
+
     char buffer[30];
     struct timeval tv;
     time_t curtime;
@@ -102,24 +130,66 @@ void *SensorSignalReader (void *arg)
 
 void *ChangeDetector (void *arg)
 {
-    UNUSED(arg);
-    
+    parm *p = (parm *) arg;
+
+    int target = p->tid;
+
     char buffer[30];
     struct timeval tv;
     time_t curtime;
 
     while (1) {
 
-        while (signalArray[0] == 0) {}
+        while (signalArray[target] == 0) {}
 
         gettimeofday(&tv, NULL);
         curtime = tv.tv_sec;
         strftime(buffer, 30, "%d-%m-%Y  %T.", localtime(&curtime));
-        printf("Detcted %5d at Time %s%ld after %ld.%06ld sec\n", 0, buffer, tv.tv_usec,
-               tv.tv_sec - timeStamp[0].tv_sec,
-               tv.tv_usec - timeStamp[0].tv_usec);
+        printf("Detcted %5d at Time %s%ld after %ld.%06ld sec\n", target, buffer, tv.tv_usec,
+               tv.tv_sec - timeStamp[target].tv_sec,
+               tv.tv_usec - timeStamp[target].tv_usec);
 
-        while (signalArray[0] == 1) {}
+        while (signalArray[target] == 1) {}
+
+    }
+
+}
+
+void *MultiChangeDetector (void *arg)
+{
+    parm *p = (parm *) arg;
+    printf("%d\n", p->tid);
+
+    const unsigned int tid = p->tid;
+    const unsigned int start = tid * CHUNK;
+    const unsigned int end = start + CHUNK + (tid == NTHREADS - 1) * (N % NTHREADS);
+
+    char buffer[30];
+    struct timeval tv;
+    time_t curtime;
+
+    while (1) {
+        unsigned int target = start;
+
+        while (signalArray[target] <= oldValues[target]) {
+            if (signalArray[target] != oldValues[target])
+                oldValues[target] = 0;
+
+            target ++;
+
+            if (target == end) target = start;
+        }
+
+        gettimeofday(&tv, NULL);
+        curtime = tv.tv_sec;
+        strftime(buffer, 30, "%d-%m-%Y  %T.", localtime(&curtime));
+        printf("Detcted %5d at Time %s%ld after %ld.%06ld sec by tid=%u\n", target, buffer, tv.tv_usec,
+               tv.tv_sec - timeStamp[target].tv_sec,
+               tv.tv_usec - timeStamp[target].tv_usec,
+               tid);
+
+        // possible race condition without the usleep() at SensorSignalReader().
+        oldValues[target] = signalArray[target];
 
     }
 
