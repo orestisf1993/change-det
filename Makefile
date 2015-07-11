@@ -7,7 +7,7 @@ TARGET = pace
 all: $(TARGET)
 
 $(TARGET): $(TARGET).c
-	gcc $(OPTI) $(WARN) $^ -lpthread -o $@ 
+	gcc $(OPTI) $(WARN) $^ -pthread -o $@ 
 
 clean:
 	rm -f $(TARGET)
