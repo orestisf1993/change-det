@@ -18,6 +18,8 @@
 #define TIME_MULTIPLIER 2000
 #define UNUSED(x) ((void) x)
 
+//TODO: clean
+
 typedef struct {
     unsigned int tid;
 } parm;
@@ -31,8 +33,11 @@ int use_bitfields;
 int use_multis;
 int total_N;
 
+// when execution time is over changing_signals is set to 0
+// and signals' values stop changing before canceling the detectors
+int changing_signals = 1;
+
 #define NTHREADS 5
-#define CHUNK (N / NTHREADS)
 
 void *SensorSignalReader (void *args);
 void *BitfieldSensorSignalReader (void *arg);
@@ -53,7 +58,7 @@ int main(int argc, char **argv)
     }
 
     N = atoi(argv[1]);
-    use_bitfields = CHUNK >= 32;
+    use_bitfields = (N / NTHREADS) >= 32;
     use_multis = (N > NTHREADS) && (!use_bitfields);
 
     void *(*target_function)(void *);
@@ -94,12 +99,14 @@ int main(int argc, char **argv)
     // sleep EXECUTION_TIME seconds and then cancel all threads
     // solves some problems with stdout redirection
     sleep(EXECUTION_TIME);
+    changing_signals = 0;
+    usleep(5000);
 
     // wait here until the signal - code never reaches this point
     for (int i = 0; i < open_threads; i++)
         pthread_cancel (sigDet[i]);
 
-    pthread_cancel (sigGen);
+    pthread_join (sigGen, NULL);
 
     return 0;
 }
@@ -132,7 +139,7 @@ void *SensorSignalReader (void *arg)
 
     srand(time(NULL));
 
-    while (1) {
+    while (changing_signals) {
         // t in [1, 10]
         int t = rand() % 10 + 1;
         // wait 0.1 to 1 secs
@@ -152,6 +159,8 @@ void *SensorSignalReader (void *arg)
         // ~ else printf("C %5d 1 -> 0\n", r);
 
     }
+
+    pthread_exit(NULL);
 }
 
 void *ChangeDetector (void *arg)
@@ -182,37 +191,31 @@ void *ChangeDetector (void *arg)
 
 void *MultiChangeDetector (void *arg)
 {
-    parm *p = (parm *) arg;
+    const parm *p = (parm *) arg;
 
     const unsigned int tid = p->tid;
-    const unsigned int start = tid * CHUNK;
-    const unsigned int end = start + CHUNK + (tid == NTHREADS - 1) * (N % NTHREADS);
-
-    // ~ char buffer[30];
-    struct timeval tv;
-    // ~ time_t curtime;
+    const unsigned int start = tid * (N / NTHREADS);
+    const unsigned int end = start + (N / NTHREADS) + (tid == NTHREADS - 1) * (N % NTHREADS);
 
     while (1) {
         unsigned int target = start;
 
-        while ((signalArray[target] == 0) || (signalArray[target] == oldValues[target])) {
+        while (signalArray[target] == oldValues[target]) {
 
             target ++;
 
             if (target == end) target = start;
         }
 
+        if (signalArray[target] == 0) {
+            oldValues[target] = 0;
+            continue;
+        }
+
+        struct timeval tv;
+
         gettimeofday(&tv, NULL);
-        // ~ curtime = tv.tv_sec;
-        // ~ strftime(buffer, 30, "%d-%m-%Y  %T.", localtime(&curtime));
-        // ~ printf("Detcted %5d at Time %s%ld after %ld.%06ld sec by tid=%u\n", target, buffer, tv.tv_usec,
-        // ~ tv.tv_sec - timeStamp[target].tv_sec,
-        // ~ tv.tv_usec - timeStamp[target].tv_usec,
-        // ~ tid);
-        // ~ printf("D %5d 0->1at Time %s%ld after %ld.%06ld sec by tid=%u\n", target, buffer, tv.tv_usec,
-        // ~ tv.tv_sec - timeStamp[target].tv_sec,
-        // ~ tv.tv_usec - timeStamp[target].tv_usec,
-        // ~ tid);
+
         printf("D %d %lu\n", target, (tv.tv_sec) * 1000000 + (tv.tv_usec));
 
         // possible race condition without the usleep() at SensorSignalReader().
@@ -246,8 +249,6 @@ void *BitfieldChangeDetector (void *arg)
     const unsigned int tid = p->tid;
     const unsigned int start = tid * (total_N / NTHREADS);
     const unsigned int end = start + (total_N / NTHREADS) + (tid == NTHREADS - 1) * (total_N % NTHREADS);
-
-    // ~ printf("%u: start %u, end %u\n", tid, start, end);
 
     // ~ char buffer[30];
     struct timeval tv;
