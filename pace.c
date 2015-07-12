@@ -27,9 +27,14 @@ volatile unsigned int *signalArray;
 volatile unsigned int *oldValues;
 
 #define USE_ACKNOWLEDGEMENT
+
 #ifdef USE_ACKNOWLEDGEMENT
-volatile unsigned int *acknowledged;
+#define USE_ACK(x) x
+#else
+#define USE_ACK(x)
 #endif
+
+USE_ACK(volatile unsigned int *acknowledged);
 
 struct timeval *timeStamp;
 
@@ -90,12 +95,9 @@ int main(int argc, char **argv)
     signalArray = calloc(total_N, sizeof(int));
     timeStamp = malloc(N * sizeof(struct timeval));
     oldValues = calloc(total_N, sizeof(int));
-#ifdef USE_ACKNOWLEDGEMENT
-    acknowledged = malloc(N * sizeof(int));
-
-    for (int i = 0; i < N; i++) acknowledged[i] = 1;
-
-#endif
+    
+    USE_ACK(acknowledged = malloc(N * sizeof(int)));
+    USE_ACK(for (int i = 0; i < N; i++) acknowledged[i] = 1);
 
     parm *p = malloc (open_threads * sizeof(parm));
     pthread_t sigGen;
@@ -115,7 +117,10 @@ int main(int argc, char **argv)
     fprintf(stderr, "joining\n");
     pthread_join (sigGen, NULL);
     fprintf(stderr, "joined\n");
+
+#ifndef USE_ACKNOWLEDGEMENT
     usleep(500);
+#endif
 
     for (int i = 0; i < open_threads; i++)
         pthread_cancel (sigDet[i]);
@@ -152,21 +157,12 @@ void *SensorSignalReader (void *arg)
         usleep(t * TIME_MULTIPLIER);
         int r = rand() % N;
 
-#ifdef USE_ACKNOWLEDGEMENT
-        while (acknowledged[r] == 0) {}
-        acknowledged[r] = 0;
+        USE_ACK(while (!acknowledged[r]) {fprintf(stderr, "waiting for %d\n", r);})
+        USE_ACK(acknowledged[r] = 0);
 
-        if (toggle_signal(r)) {
-            printf("C %d %lu\n", r, (timeStamp[r].tv_sec) * 1000000 + (timeStamp[r].tv_usec));
-
-        } else acknowledged[r] = 1;
-
-#else
-
-        if (toggle_signal(r))
-            printf("C %d %lu\n", r, (timeStamp[r].tv_sec) * 1000000 + (timeStamp[r].tv_usec));
-
-#endif
+        if (toggle_signal(r)){
+            printf("C %d %lu\n", r, (timeStamp[r].tv_sec) * 1000000 + (timeStamp[r].tv_usec));}
+        USE_ACK(else acknowledged[r] = 1);
 
     }
 
@@ -176,9 +172,7 @@ void *SensorSignalReader (void *arg)
 void *ChangeDetector (void *arg)
 {
     const parm *p = (parm *) arg;
-
-    int target = p->tid;
-    fprintf(stderr, "%d target\n", target);
+    const int target = p->tid;
 
     while (1) {
         // active waiting until target value changes to 1
@@ -192,10 +186,8 @@ void *ChangeDetector (void *arg)
         struct timeval tv;
         gettimeofday(&tv, NULL);
         printf("D %d %lu\n", target, (tv.tv_sec) * 1000000 + (tv.tv_usec));
-#ifdef USE_ACKNOWLEDGEMENT
-        acknowledged[target] = 1;
-
-#endif
+        oldValues[target] = 1;
+        USE_ACK(acknowledged[target] = 1);
     }
 }
 
@@ -231,10 +223,8 @@ void *MultiChangeDetector (void *arg)
         // possible race condition without the usleep() at SensorSignalReader().
         oldValues[target] = signalArray[target];
 
-#ifdef USE_ACKNOWLEDGEMENT
-        acknowledged[target] = 1;
+        USE_ACK(acknowledged[target] = 1);
 
-#endif
     }
 }
 
@@ -295,8 +285,6 @@ void *BitfieldChangeDetector (void *arg)
         // ~ oldValues[target] = signalArray[target];
         oldValues[target] ^= 1 << bit_idx;
 
-#ifdef USE_ACKNOWLEDGEMENT
-        acknowledged[actual] = 1;
-#endif
+        USE_ACK(acknowledged[actual] = 1);
     }
 }
