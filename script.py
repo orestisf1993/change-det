@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from sys import stderr
 
 with open('out.log') as f:
     s = f.read()
@@ -20,7 +21,6 @@ for line in l:
         D.append(v)
 
 a = {}
-
 for signal_id, time in C:
     if signal_id not in a:
         a[signal_id] = []
@@ -38,11 +38,14 @@ for signal_id in a:
     assert(signal_id in b)
     t1 = a[signal_id]
     t2 = b[signal_id]
-    assert(len(t1) == len(t2))
+    if(len(t1) != len(t2)):
+        print("len() error! signal id = {0} a = {1} b = {2}".format(signal_id, len(t1), len(t2)), file=stderr)
+        continue
     c[signal_id] = [(j - i)*(j>i) for i,j in zip(t1,t2)]
+    # ~ for idx,i in enumerate(c[signal_id]):
+        # ~ if i > 20000:
+            # ~ print("big in {0} {1} => {2}!".format(signal_id,idx,i), file=stderr)
 
-s = 0
-for signal_id in c:
-    s += sum(c[signal_id])
+s = sum(sum(c[signal_id]) for signal_id in c)
 
-print('total delay = {0}, average delay = {1}'.format(s, s/len(C)))
+print('total delay = {0}, average delay = {1}, total signals = {2}'.format(s, s/len(C), len(C)))
