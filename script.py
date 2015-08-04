@@ -11,6 +11,25 @@ l = list(filter(bool, l))
 if (len(l) % 2):
     del l[-1]
 
+# find and delete missing/extra changes in the flow
+flow = {}
+for line in l:
+    v = tuple(line[0]) + tuple(map(int, line[2:].split()))
+    sid = v[1]
+    if sid not in flow:
+        flow[sid] = []
+    flow[sid].append(v)
+
+for sid, values in flow.items():
+    values.sort(key=lambda x: 10 * x[2] - (x[0]=='C'))
+    for idx in range(1, len(values)):
+        if values[idx][0] == values[idx-1][0]:
+            print(values[idx], values[idx-1])
+
+            original_string = (str(x) for x in values[idx])
+            idx_to_del = l.index(' '.join(original_string))
+            del l[idx_to_del]
+
 C = []
 D = []
 for line in l:
