@@ -7,6 +7,8 @@ l = s.split('\n')
 # remove empty lines
 l = list(filter(bool, l))
 
+del s
+
 # If the execution was cut before a signal detection, delete the last line
 if (len(l) % 2):
     del l[-1]
@@ -30,6 +32,8 @@ for sid, values in flow.items():
             idx_to_del = l.index(' '.join(original_string))
             del l[idx_to_del]
 
+del flow
+
 C = []
 D = []
 for line in l:
@@ -38,6 +42,8 @@ for line in l:
         C.append(v)
     elif line[0] == 'D':
         D.append(v)
+
+del l
 
 a = {}
 for signal_id, time in C:
@@ -50,6 +56,11 @@ for signal_id, time in D:
     if signal_id not in b:
         b[signal_id] = []
     b[signal_id].append(time)
+
+total_elements = len(C)
+
+del C
+del D
 
 assert(len(a) == len(b))
 c = {}
@@ -67,4 +78,4 @@ for signal_id in a:
 
 s = sum(sum(c[signal_id]) for signal_id in c)
 
-print('total delay = {0}, average delay = {1}, total signals = {2}'.format(s, s/len(C), len(C)))
+print('total delay = {0}, average delay = {1}, total signals = {2}'.format(s, s/total_elements, total_elements))
