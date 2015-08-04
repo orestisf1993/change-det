@@ -7,6 +7,12 @@
     AUTh 2015
 */
 
+//TODO: condition variables instead of acknowledgement
+//TODO: condition variables in signalArray
+//TODO: free() - clean ups?
+//TODO: buffer instead of stdout prints may speed up things?
+//TODO: different executables for each version: a) initial b) multi w/o ack c) multi w/ ack
+
 #include <pthread.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -32,6 +38,12 @@ unsigned int* oldValues;
     #define USE_ACK(x)
 #endif
 
+#ifdef USE_CONDITION_VARIABLES
+    #define USE_CV(x) x
+#else
+    #define USE_CV(x)
+#endif
+
 USE_ACK(volatile unsigned int* acknowledged);
 
 struct timeval* timeStamp;
@@ -51,6 +63,9 @@ void* SensorSignalReader(void* args);
 void* ChangeDetector(void* args);
 void* MultiChangeDetector(void* arg);
 void* BitfieldChangeDetector(void* arg);
+
+USE_CV(pthread_mutex_t* signal_mutex);
+USE_CV(pthread_cond_t* signal_cv);
 
 int main(int argc, char** argv) {
     // usage prompt and exit
@@ -99,6 +114,15 @@ int main(int argc, char** argv) {
     parm* p = malloc(open_threads * sizeof(parm));
     pthread_t sigGen;
     pthread_t* sigDet = malloc(open_threads * sizeof(pthread_t));
+
+    USE_CV(
+    signal_mutex = malloc(N *sizeof(pthread_mutex_t));
+    signal_cv = malloc(N * sizeof(pthread_cond_t));
+
+    /* Initialize mutex and condition variable objects */
+    for (unsigned int i = 0; i < N ; i++) pthread_mutex_init(&signal_mutex[i], NULL);
+    for (unsigned int i = 0; i < N ; i++) pthread_cond_init(&signal_cv[i], NULL);
+    )
 
     for (int i = 0; i < open_threads; i++) {
         p[i].tid = i;
@@ -158,12 +182,15 @@ void* SensorSignalReader(void* arg) {
         usleep(t * TIME_MULTIPLIER);
         const int r = rand() % N;
 
-        USE_ACK(while (!acknowledged[r]) {});
+        USE_CV(pthread_mutex_lock(&signal_mutex[r]));
+        USE_ACK(while (!acknowledged[r]) {USE_CV(pthread_cond_wait(&signal_cv[r], &signal_mutex[r]);)});
         USE_ACK(acknowledged[r] = 0);
 
         if (toggle_signal(r)) {
             printf("C %d %lu\n", r, (timeStamp[r].tv_sec) * 1000000 + (timeStamp[r].tv_usec));
         }
+
+        USE_CV(pthread_mutex_unlock(&signal_mutex[r]));
     }
 
     pthread_exit(NULL);
@@ -179,6 +206,8 @@ void* ChangeDetector(void* arg) {
         unsigned int t;
         while ((t = signalArray[target]) == oldValues[target]) {}
 
+        USE_CV(pthread_mutex_lock(&signal_mutex[target]));
+
         oldValues[target] = t;
         if (t) {
             // signal activated: 0->1
@@ -188,6 +217,9 @@ void* ChangeDetector(void* arg) {
         }
 
         USE_ACK(acknowledged[target] = 1);
+
+        USE_CV(pthread_cond_signal(&signal_cv[target]));
+        USE_CV(pthread_mutex_unlock(&signal_mutex[target]));
     }
 }
 
@@ -202,6 +234,7 @@ void* MultiChangeDetector(void* arg) {
     while (1) {
         unsigned int t;
         while ((t = signalArray[target]) == oldValues[target]) {
+            // ~ pthread_cond_signal(&signal_cv[target]);
             target ++;
 
             if (target == end) {
@@ -209,6 +242,8 @@ void* MultiChangeDetector(void* arg) {
             }
         }
 
+        USE_CV(pthread_mutex_lock(&signal_mutex[target]));
+        
         oldValues[target] = t;
         if (t) {
             struct timeval tv;
@@ -217,6 +252,8 @@ void* MultiChangeDetector(void* arg) {
         }
 
         USE_ACK(acknowledged[target] = 1);
+        USE_CV(pthread_cond_signal(&signal_cv[target]));
+        USE_CV(pthread_mutex_unlock(&signal_mutex[target]));
     }
 }
 
@@ -263,6 +300,7 @@ void* BitfieldChangeDetector(void* arg) {
 
         const int bit_idx = msb_changed(t, oldValues[target]);
         const int actual = bit_idx + 32 * target;
+        USE_CV(pthread_mutex_lock(&signal_mutex[actual]));
         /* oldValues[target] = t; <-- this way we lose signal changes
          * when 2 or more signals change at the same time within a bitfield. */
         /* if multiple changes happen then msb_changed() each time will find
@@ -277,5 +315,7 @@ void* BitfieldChangeDetector(void* arg) {
         }
 
         USE_ACK(acknowledged[actual] = 1);
+        USE_CV(pthread_cond_signal(&signal_cv[actual]));
+        USE_CV(pthread_mutex_unlock(&signal_mutex[actual]));
     }
 }
