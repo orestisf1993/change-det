@@ -1,10 +1,11 @@
 /*
-  Multiple Change Detector
-  RTES 2015
+    Multiple Change Detector
+    RTES 2015
 
-  Nikos P. Pitsianis
-  AUTh 2015
- */
+    Nikos P. Pitsianis
+    Orestis Floros-Malivitsis
+    AUTh 2015
+*/
 
 #include <pthread.h>
 #include <stdio.h>
@@ -40,8 +41,8 @@ int use_bitfields;
 int use_multis;
 unsigned int total_N;
 
-// when execution time is over changing_signals is set to 0
-// and signals' values stop changing before canceling the detectors
+/* when execution time is over changing_signals is set to 0
+ * and signals' values stop changing before canceling the detectors. */
 volatile int changing_signals = 1;
 
 #define NTHREADS 5
@@ -87,7 +88,7 @@ int main(int argc, char** argv) {
             total_N, N);
     fprintf(stderr, "use_bitfields: %d use_multis: %d\n", use_bitfields, use_multis);
 
-    // Allocate signal, time-stamp arrays and thread handles
+    // Allocate signal, time-stamp arrays and thread handles.
     signalArray = calloc(total_N, sizeof(int));
     timeStamp = malloc(N * sizeof(struct timeval));
     oldValues = calloc(total_N, sizeof(int));
@@ -106,8 +107,8 @@ int main(int argc, char** argv) {
 
     pthread_create(&sigGen, NULL, SensorSignalReader, NULL);
 
-    // sleep EXECUTION_TIME seconds and then cancel all threads
-    // solves some problems with stdout redirection
+    /* Sleep EXECUTION_TIME seconds and then cancel all threads.
+     * Solves some problems with stdout redirection when used instead of alarm().*/
     sleep(EXECUTION_TIME);
     changing_signals = 0;
 
@@ -116,7 +117,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "joined\n");
 
     #ifndef USE_ACKNOWLEDGEMENT
-    // allow the detectors to find the last changes
+    // Allow the detectors to find the last changes.
     usleep(500);
     #endif
 
@@ -128,9 +129,9 @@ int main(int argc, char** argv) {
 }
 
 int toggle_signal(int r) {
-    // Toggles the value of signal r.
-    // timeStamp[r] is updated before the signal actually changes it's value.
-    // Otherwise, the detectors can detect the change with before timeStamp is updated.
+    /* Toggles the value of signal r.
+     * timeStamp[r] is updated before the signal actually changes it's value.
+     * Otherwise, the detectors can detect the change with before timeStamp is updated. */
 
     if (use_bitfields) {
         const int array_idx = r / 32;
@@ -213,7 +214,6 @@ void* MultiChangeDetector(void* arg) {
             struct timeval tv;
             gettimeofday(&tv, NULL);
             printf("D %d %lu\n", target, (tv.tv_sec) * 1000000 + (tv.tv_usec));
-            // possible race condition without the usleep() at SensorSignalReader().
         }
 
         USE_ACK(acknowledged[target] = 1);
@@ -228,8 +228,9 @@ const char LogTable256[256] = {
 };
 
 int msb_changed(int target) {
-    // finds the different bits between signalArray[target] and oldValues[target] (with bitwise XOR) and return the most significant of them
-    // kinda faster than gcc's __builtin_clz()
+    /* Use bitwise XOR to find the different bits between signalArray[target] and
+     * oldValues[target]. Return the most significant of them using log2.
+     * Kinda faster than gcc's __builtin_clz() */
     // diff is 32-bit word to find the log2 of
     unsigned int diff = signalArray[target] ^ oldValues[target];
     unsigned int t, tt; // temporaries
@@ -262,8 +263,11 @@ void* BitfieldChangeDetector(void* arg) {
 
         const int bit_idx = msb_changed(target);
         const int actual = bit_idx + 32 * target;
-        // oldValues[target] = t; <-- this way we lose signal changes when 2 or more signals change at the same time within a bitfield.
-        // if multiple changes happen then msb_changed() will find each time a change at the most significant bit because ceil(log2(a)) is the MSB of a
+        /* oldValues[target] = t; <-- this way we lose signal changes
+         * when 2 or more signals change at the same time within a bitfield. */
+        /* if multiple changes happen then msb_changed() each time will find
+         * the change at the most significant bit
+         * because ceil(log2(x)) is the MSB of x */
         oldValues[target] ^= 1 << bit_idx;
 
         if ((t >> bit_idx) & 1) {
