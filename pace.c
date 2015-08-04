@@ -15,7 +15,7 @@
 #include <sys/time.h>
 #include <time.h>
 
-#define EXECUTION_TIME 1
+#define EXECUTION_TIME 100
 #define TIME_MULTIPLIER 0
 #define UNUSED(x) ((void) x)
 
@@ -24,7 +24,7 @@ typedef struct {
 } parm;
 
 volatile unsigned int* signalArray;
-volatile unsigned int* oldValues;
+unsigned int* oldValues;
 
 #ifdef USE_ACKNOWLEDGEMENT
     #define USE_ACK(x) x
@@ -227,12 +227,12 @@ const char LogTable256[256] = {
     LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7)
 };
 
-int msb_changed(int target) {
+int msb_changed(unsigned int current, unsigned int old) {
     /* Use bitwise XOR to find the different bits between signalArray[target] and
      * oldValues[target]. Return the most significant of them using log2.
      * Kinda faster than gcc's __builtin_clz() */
     // diff is 32-bit word to find the log2 of
-    unsigned int diff = signalArray[target] ^ oldValues[target];
+    unsigned int diff = current ^ old;
     unsigned int t, tt; // temporaries
 
     if ((tt = diff >> 16)) {
@@ -261,7 +261,7 @@ void* BitfieldChangeDetector(void* arg) {
             }
         }
 
-        const int bit_idx = msb_changed(target);
+        const int bit_idx = msb_changed(t, oldValues[target]);
         const int actual = bit_idx + 32 * target;
         /* oldValues[target] = t; <-- this way we lose signal changes
          * when 2 or more signals change at the same time within a bitfield. */
