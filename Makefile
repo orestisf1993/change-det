@@ -1,6 +1,6 @@
 # ~ OPTI = -m64 -O0 -g -gdwarf-3 -fno-exceptions
 OPTI = -m64 -O3 -fno-exceptions
-DEFINES = -DUSE_ACKNOWLEDGEMENT
+DEFINES = -DUSE_ACKNOWLEDGEMENT -DUSE_CONDITION_VARIABLES
 WARN = -Wextra -Wall -Wpointer-arith -Wformat -Wfloat-equal -Winit-self \
 -Wcast-qual -Wwrite-strings -Wshadow -Wstrict-prototypes -Wundef -Wunreachable-code
 
