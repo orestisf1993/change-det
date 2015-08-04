@@ -35,10 +35,10 @@ USE_ACK(volatile unsigned int* acknowledged);
 
 struct timeval* timeStamp;
 
-int N;
+unsigned int N;
 int use_bitfields;
 int use_multis;
-int total_N;
+unsigned int total_N;
 
 // when execution time is over changing_signals is set to 0
 // and signals' values stop changing before canceling the detectors
@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
     oldValues = calloc(total_N, sizeof(int));
 
     USE_ACK(acknowledged = malloc(N * sizeof(int)));
-    USE_ACK(for (int i = 0; i < N; i++) acknowledged[i] = 1);
+    USE_ACK(for (unsigned int i = 0; i < N; i++) acknowledged[i] = 1);
 
     parm* p = malloc(open_threads * sizeof(parm));
     pthread_t sigGen;
@@ -193,9 +193,9 @@ void* ChangeDetector(void* arg) {
 void* MultiChangeDetector(void* arg) {
     const parm* p = (parm*) arg;
     const unsigned int tid = p->tid;
-    const unsigned int start = tid * (N / NTHREADS);
-    //TODO: change it so the first (N % NTHREADS) threads receive +1 element
-    const unsigned int end = start + (N / NTHREADS) + (tid == NTHREADS - 1) * (N % NTHREADS);
+    const unsigned int start = tid * (N / NTHREADS) +
+                               (tid < N % NTHREADS ? tid : N % NTHREADS);
+    const unsigned int end = start + (N / NTHREADS) + (tid < N % NTHREADS);
     unsigned int target = start;
 
     while (1) {
@@ -244,9 +244,10 @@ int msb_changed(int target) {
 void* BitfieldChangeDetector(void* arg) {
     parm* p = (parm*) arg;
     const unsigned int tid = p->tid;
-    const unsigned int start = tid * (total_N / NTHREADS);
+    const unsigned int start = tid * (total_N / NTHREADS) +
+                               (tid < total_N % NTHREADS ? tid : total_N % NTHREADS);
     const unsigned int end = start + (total_N / NTHREADS) +
-                             (tid == NTHREADS - 1) * (total_N % NTHREADS);
+                             (tid < total_N % NTHREADS);
     unsigned int target = start;
 
     while (1) {
