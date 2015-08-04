@@ -115,14 +115,12 @@ int main(int argc, char** argv) {
     pthread_t sigGen;
     pthread_t* sigDet = malloc(open_threads * sizeof(pthread_t));
 
-    USE_CV(
-    signal_mutex = malloc(N *sizeof(pthread_mutex_t));
-    signal_cv = malloc(N * sizeof(pthread_cond_t));
+    USE_CV(signal_mutex = malloc(N * sizeof(pthread_mutex_t)));
+    USE_CV(signal_cv = malloc(N * sizeof(pthread_cond_t)));
 
     /* Initialize mutex and condition variable objects */
-    for (unsigned int i = 0; i < N ; i++) pthread_mutex_init(&signal_mutex[i], NULL);
-    for (unsigned int i = 0; i < N ; i++) pthread_cond_init(&signal_cv[i], NULL);
-    )
+    USE_CV(for (unsigned int i = 0; i < N ; i++) pthread_mutex_init(&signal_mutex[i], NULL));
+    USE_CV(for (unsigned int i = 0; i < N ; i++) pthread_cond_init(&signal_cv[i], NULL));
 
     for (int i = 0; i < open_threads; i++) {
         p[i].tid = i;
@@ -183,7 +181,9 @@ void* SensorSignalReader(void* arg) {
         const int r = rand() % N;
 
         USE_CV(pthread_mutex_lock(&signal_mutex[r]));
-        USE_ACK(while (!acknowledged[r]) {USE_CV(pthread_cond_wait(&signal_cv[r], &signal_mutex[r]);)});
+        USE_ACK(while (!acknowledged[r]) {
+        USE_CV(pthread_cond_wait(&signal_cv[r], &signal_mutex[r]);)
+        });
         USE_ACK(acknowledged[r] = 0);
 
         if (toggle_signal(r)) {
@@ -243,7 +243,7 @@ void* MultiChangeDetector(void* arg) {
         }
 
         USE_CV(pthread_mutex_lock(&signal_mutex[target]));
-        
+
         oldValues[target] = t;
         if (t) {
             struct timeval tv;
