@@ -36,6 +36,44 @@ def find_valid(flow):
     return [x.start() for x in valid]
 
 
+def find_errors(valid_idx, flow):
+    """Finds the errors according to valid_idx and the flow
+
+    Args:
+        flow(iterable): The whole sequence for a specific signal id, sorted by time.
+
+    Returns:
+        int: The number of errors found.
+
+    """
+
+    # valid_idx is empty but flow isn't
+    if not valid_idx:
+        for element in flow:
+            print(element)
+        return len(flow)
+
+    # valid_idx[0] isn't 0
+    total_errors = valid_idx[0]
+    for error in range(total_errors):
+        print(flow[error])
+
+    # all lost errors in between
+    for i in range(1, len(valid_idx)):
+        errors = valid_idx[i] - valid_idx[i - 1] - 2
+        total_errors += errors
+        for error in range(1, errors + 1):
+            error_idx = valid_idx[i - 1] + 2 * error
+            print(flow[error_idx])
+
+    # last elements in flow not found
+    for error in flow[valid_idx[-1] + 2:]:
+        total_errors += 1
+        print(error)
+
+    return total_errors
+
+
 def main():
     """Main function."""
     with open(OUTPUT_NAME) as log_file:
@@ -54,13 +92,19 @@ def main():
         itemgetter(SID_IDX)
     )
     time_sum = 0
+    errors_sum = 0
     for _, flow in log_grouped:
         flow = sorted(flow,
                       key=lambda x: 10 * x[TIME_IDX] - (x[TYPE_IDX] == 'C'))
         valid_idx = find_valid(flow)
+
+        total_errors = find_errors(valid_idx, flow)
         diff = [flow[i + 1][TIME_IDX] - flow[i][TIME_IDX] for i in valid_idx]
+
         time_sum += sum(diff)
+        errors_sum += total_errors
     print(time_sum)
+    print(errors_sum)
 
 
 if __name__ == "__main__":
