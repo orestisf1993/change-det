@@ -155,6 +155,7 @@ int main(int argc, char** argv) {
     free(oldValues);
     USE_CV(free(signal_cv));
     USE_CV(free((signal_mutex)));
+    fflush(stdout);
 
     _exit(0);
 }
