@@ -17,8 +17,8 @@
 #include <sys/time.h>
 #include <time.h>
 
-#define EXECUTION_TIME 20 //default was 20
-#define TIME_MULTIPLIER 100000 // default was 100000
+#define DEFAULT_EXECUTION_TIME 20  // default was 20
+#define DEFAULT_TIME_MULTIPLIER 100000  // default was 100000
 #define UNUSED(x) ((void) x)
 
 typedef struct {
@@ -49,6 +49,9 @@ static int use_bitfields;
 static int use_multis;
 static unsigned int total_N;
 
+static unsigned int time_multiplier = DEFAULT_TIME_MULTIPLIER;
+static unsigned int execution_time = DEFAULT_EXECUTION_TIME;
+
 /* when execution time is over changing_signals is set to 0
  * and signals' values stop changing before cancelling the detectors. */
 static volatile int changing_signals = 1;
@@ -67,15 +70,25 @@ USE_CV(static pthread_cond_t* signal_cv);
 
 int main(int argc, char** argv) {
     // usage prompt and exit
-    if (argc != 2) {
-        printf("Usage: %s N\n"
+    if (argc < 2) {
+        printf("Usage: %s N T E\n"
                "    where:\n"
                "        N: number of signals to monitor\n"
+               "        T(optional): time multiplier. Signal interval between T"
+               " and 10 * T usec\n"
+               "        E(optional): execution duration\n"
                , argv[0]);
         return 1;
     }
 
     N = (unsigned int)strtoul(argv[1], NULL, 0);
+
+    if (argc > 2) {
+        time_multiplier = (unsigned int)strtoul(argv[2], NULL, 0);
+        if (argc > 3) {
+            execution_time = (unsigned int)strtoul(argv[3], NULL, 0);
+        }
+    }
 
     use_bitfields = (N / NTHREADS) >= 32;
     use_multis = (N > NTHREADS) && (!use_bitfields);
@@ -131,9 +144,9 @@ int main(int argc, char** argv) {
 
     pthread_create(&sigGen, NULL, SensorSignalReader, NULL);
 
-    /* Sleep EXECUTION_TIME seconds and then cancel all threads.
+    /* Sleep execution_time seconds and then cancel all threads.
      * Solves some problems with stdout redirection when used instead of alarm().*/
-    sleep(EXECUTION_TIME);
+    sleep(execution_time);
     changing_signals = 0;
 
     fprintf(stderr, "joining\n");
@@ -187,7 +200,7 @@ void* SensorSignalReader(void* arg) {
     while (changing_signals) {
         // t in [1, 10]
         const int t = rand() % 10 + 1;
-        usleep(t * TIME_MULTIPLIER);
+        usleep(t * time_multiplier);
         const int r = rand() % N;
 
         USE_CV(pthread_mutex_lock(&signal_mutex[r]));
