@@ -12,6 +12,7 @@ from operator import itemgetter
 import re
 # ~ from sys import stderr
 from itertools import groupby
+import collections
 
 OUTPUT_NAME = 'out.log'
 TYPE_IDX = 0
@@ -91,8 +92,15 @@ def main():
         sorted(log_splitted, key=itemgetter(SID_IDX)),
         itemgetter(SID_IDX)
     )
+
+    SignalData = collections.namedtuple(
+        'SignalData', 'diff total_elements total_errors'
+    )
+
     time_sum = 0
     errors_sum = 0
+    signals_sum = 0
+    signal_data = []
     for _, flow in log_grouped:
         flow = sorted(flow,
                       key=lambda x: 10 * x[TIME_IDX] - (x[TYPE_IDX] == 'C'))
@@ -100,11 +108,27 @@ def main():
 
         total_errors = find_errors(valid_idx, flow)
         diff = [flow[i + 1][TIME_IDX] - flow[i][TIME_IDX] for i in valid_idx]
+        total_elements = 2 * len(valid_idx)
+
+        signal_data.append(SignalData(diff, total_elements, total_errors))
 
         time_sum += sum(diff)
         errors_sum += total_errors
-    print(time_sum)
-    print(errors_sum)
+        signals_sum += total_elements
+
+    print(
+        "Total delay: {0}\n"
+        "Average delay: {1}\n"
+        "Total signals: {2}\n"
+        "Total errors: {3}\n"
+        "Error percentage: {4}%".format(
+            time_sum,
+            time_sum / signals_sum,
+            signals_sum,
+            errors_sum,
+            errors_sum / signals_sum * 100
+        )
+    )
 
 
 if __name__ == "__main__":
