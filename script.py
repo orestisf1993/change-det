@@ -1,81 +1,67 @@
 #!/usr/bin/env python3
-from sys import stderr
+"""This module parses the output log of pace and prints various statistical data.
 
-with open('out.log') as f:
-    s = f.read()
-l = s.split('\n')
-# remove empty lines
-l = list(filter(bool, l))
+    Attributes:
+        OUTPUT_NAME: name of the log file to be read.
+        TYPE_IDX: index of the signal type ("C"/"D").
+        SID_IDX: index of the signal id.
+        TIME_IDX: index of the time of the signal change/detection.
+"""
 
-del s
+from operator import itemgetter
+import re
+# ~ from sys import stderr
+from itertools import groupby
 
-# If the execution was cut before a signal detection, delete the last line
-if (len(l) % 2):
-    del l[-1]
+OUTPUT_NAME = 'out.log'
+TYPE_IDX = 0
+SID_IDX = 1
+TIME_IDX = 2
 
-# find and delete missing/extra changes in the flow
-flow = {}
-for line in l:
-    v = tuple(line[0]) + tuple(map(int, line[2:].split()))
-    sid = v[1]
-    if sid not in flow:
-        flow[sid] = []
-    flow[sid].append(v)
 
-for sid, values in flow.items():
-    values.sort(key=lambda x: 10 * x[2] - (x[0]=='C'))
-    for idx in range(1, len(values)):
-        if values[idx][0] == values[idx-1][0]:
-            print(values[idx], values[idx-1])
+def find_valid(flow):
+    """Finds correct "CD" sub-sequences of changed and detected signals.
 
-            original_string = (str(x) for x in values[idx])
-            idx_to_del = l.index(' '.join(original_string))
-            del l[idx_to_del]
+    Args:
+        flow(iterable): The whole sequence for a specific signal id, sorted by time.
 
-del flow
+    Returns:
+        An iterable of the indeces of the correct sequences.
 
-C = []
-D = []
-for line in l:
-    v = tuple(map(int, line[2:].split()))
-    if line[0] == 'C':
-        C.append(v)
-    elif line[0] == 'D':
-        D.append(v)
+    """
 
-del l
+    string_flow = ''.join([line[0] for line in flow])
+    valid = re.finditer("CD", string_flow)
+    # ~ return (x.start() for x in valid)
+    return [x.start() for x in valid]
 
-a = {}
-for signal_id, time in C:
-    if signal_id not in a:
-        a[signal_id] = []
-    a[signal_id].append(time)
 
-b = {}
-for signal_id, time in D:
-    if signal_id not in b:
-        b[signal_id] = []
-    b[signal_id].append(time)
+def main():
+    """Main function."""
+    with open(OUTPUT_NAME) as log_file:
+        log_string = log_file.read().split('\n')
+        log_splitted = (
+            tuple(line[0]) +    # line[0] is 'C' or 'D'
+            tuple(map(int, line[2:].split()))
+            # tuple(int(x) for x in line[2:].split()) <- slower
+            for line in log_string if line
+        )
+        del log_string
 
-total_elements = len(C)
+    # group entries by their signal id
+    log_grouped = groupby(
+        sorted(log_splitted, key=itemgetter(SID_IDX)),
+        itemgetter(SID_IDX)
+    )
+    time_sum = 0
+    for _, flow in log_grouped:
+        flow = sorted(flow,
+                      key=lambda x: 10 * x[TIME_IDX] - (x[TYPE_IDX] == 'C'))
+        valid_idx = find_valid(flow)
+        diff = [flow[i + 1][TIME_IDX] - flow[i][TIME_IDX] for i in valid_idx]
+        time_sum += sum(diff)
+    print(time_sum)
 
-del C
-del D
 
-assert(len(a) == len(b))
-c = {}
-for signal_id in a:
-    assert(signal_id in b)
-    t1 = a[signal_id]
-    t2 = b[signal_id]
-    if(len(t1) != len(t2)):
-        print("len() error! signal id = {0} a = {1} b = {2}".format(signal_id, len(t1), len(t2)), file=stderr)
-        continue
-    c[signal_id] = [(j - i)*(j>i) for i,j in zip(t1,t2)]
-    # ~ for idx,i in enumerate(c[signal_id]):
-        # ~ if i > 20000:
-            # ~ print("big in {0} {1} => {2}!".format(signal_id,idx,i), file=stderr)
-
-s = sum(sum(c[signal_id]) for signal_id in c)
-
-print('total delay = {0}, average delay = {1}, total signals = {2}'.format(s, s/total_elements, total_elements))
+if __name__ == "__main__":
+    main()
