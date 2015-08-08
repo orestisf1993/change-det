@@ -1,0 +1,43 @@
+%&preamble
+% Save static part at preamble.tex and use command:
+% xelatex -ini -shell-escape -job-name="preamble" "&xelatex preamble.tex\dump"
+% to produce preamble.fmt
+
+\title{Python plots for LaTeX}
+% Only for xelatex and lualatex. It provides an automatic and unified interface to feature-rich AAT and OpenType fonts.
+% https://ctan.org/pkg/fontspec
+\usepackage{fontspec}
+\setmainfont{DejaVu Serif}
+% Change the title of contents list and figure list
+\renewcommand{\contentsname}{Περιεχόμενα}
+\renewcommand{\listfigurename}{Λίστα Σχημάτων}
+% Change the name of each figure
+\renewcommand{\figurename}{Σχήμα}
+\renewcommand{\lstlistingname}{Καταχώρηση}% Listing -> Algorithm
+\renewcommand{\lstlistlistingname}{List of \lstlistingname s}
+
+\title{Εργασία στα Ενσωματωμένα Συστήματα Πραγματικού Χρόνου}
+\author{Ορέστης Φλώρος-Μαλιβίτσης\\
+  Τομέας Ηλεκτρονικής,\\
+  Τμήμα Ηλ. Μηχανικών / Μηχανικών ΗΥ,\\
+  Αριστοτέλειο Πανεπιστήμιο Θεσσαλονίκης}
+%\date{} % TODO: update
+
+%\includeonly{part_a} % delete for release version
+
+\begin{document}
+\maketitle
+\tableofcontents
+%\listoffigures
+\newpage
+
+% Δομή του Project
+\chapter*{Δομή του Project} \label{project-structure}
+
+\begin{description}
+	\item[report.pdf] Αυτή η αναφορά.
+\end{description}
+
+\include{intro}
+
+\end{document}
