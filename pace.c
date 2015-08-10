@@ -259,12 +259,7 @@ void* MultiChangeDetector(void* arg) {
     while (1) {
         unsigned int t;
         while ((t = signalArray[target]) == oldValues[target]) {
-            // ~ pthread_cond_signal(&signal_cv[target]);
-            target++;
-
-            if (target == end) {
-                target = start;
-            }
+            target = (target < end) ? target + 1 : start;
         }
 
         USE_CV(pthread_mutex_lock(&signal_mutex[target]));
@@ -317,11 +312,7 @@ void* BitfieldChangeDetector(void* arg) {
     while (1) {
         unsigned int t;
         while ((t = signalArray[target]) == oldValues[target]) {
-            target++;
-
-            if (target == end) {
-                target = start;
-            }
+            target = (target < end) ? target + 1 : start;
         }
 
         const int bit_idx = msb_changed(t, oldValues[target]);
