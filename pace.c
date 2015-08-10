@@ -16,10 +16,13 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <time.h>
+#include <limits.h>
 
 #define DEFAULT_EXECUTION_TIME 20  // default was 20
 #define DEFAULT_TIME_MULTIPLIER 100000  // default was 100000
 #define UNUSED(x) ((void) x)
+
+#define INT_BIT (sizeof (int) * CHAR_BIT)
 
 typedef struct {
     unsigned int tid;
@@ -90,7 +93,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    use_bitfields = (N / NTHREADS) >= 32;
+    use_bitfields = (N / NTHREADS) >= INT_BIT;
     use_multis = (N > NTHREADS) && (!use_bitfields);
 
     void* (*target_function)(void*);
@@ -99,7 +102,7 @@ int main(int argc, char** argv) {
     if (use_bitfields) {
         target_function = BitfieldChangeDetector;
         open_threads = NTHREADS;
-        total_N = N / 32 + (N % 32 != 0);
+        total_N = N / INT_BIT + (N % INT_BIT != 0);
     } else if (use_multis) {
         target_function = MultiChangeDetector;
         open_threads = NTHREADS;
@@ -179,8 +182,8 @@ int toggle_signal(int r) {
      * Otherwise, the detectors can detect the change with before timeStamp is updated. */
 
     if (use_bitfields) {
-        const int array_idx = r / 32;
-        const int bit_idx = r % 32;
+        const int array_idx = r / INT_BIT;
+        const int bit_idx = r % INT_BIT;
         const int return_value = !((signalArray[array_idx] >> bit_idx) & 1);
 
         gettimeofday(&timeStamp[r], NULL);
@@ -288,7 +291,7 @@ int msb_changed(unsigned int current, unsigned int old) {
     /* Use bit-wise XOR to find the different bits between signalArray[target] and
      * oldValues[target]. Return the most significant of them using log2.
      * Kinda faster than gcc's __builtin_clz() */
-    // diff is 32-bit word to find the log2 of
+    // diff is INT_BIT-bit word to find the log2 of
     unsigned int diff = current ^ old;
     unsigned int t, tt;  // temporaries
 
@@ -316,7 +319,7 @@ void* BitfieldChangeDetector(void* arg) {
         }
 
         const int bit_idx = msb_changed(t, oldValues[target]);
-        const unsigned int actual = bit_idx + 32 * target;
+        const unsigned int actual = bit_idx + INT_BIT * target;
         USE_CV(pthread_mutex_lock(&signal_mutex[actual]));
         /* oldValues[target] = t; <-- this way we lose signal changes
          * when 2 or more signals change at the same time within a bitfield. */
