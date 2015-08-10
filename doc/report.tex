@@ -3,6 +3,8 @@
 % xelatex -ini -shell-escape -job-name="preamble" "&xelatex preamble.tex\dump"
 % to produce preamble.fmt
 
+\usepackage[textwidth=15cm]{geometry}
+
 \title{Python plots for LaTeX}
 % Only for xelatex and lualatex. It provides an automatic and unified interface to feature-rich AAT and OpenType fonts.
 % https://ctan.org/pkg/fontspec
@@ -39,5 +41,6 @@
 \end{description}
 
 \include{intro}
+\include{multithread}
 
 \end{document}
