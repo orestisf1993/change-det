@@ -33,13 +33,14 @@ static unsigned int* oldValues;
 
 #ifdef USE_ACKNOWLEDGEMENT
     #define USE_ACK(x) x
+    
+    #ifdef USE_CONDITION_VARIABLES
+        #define USE_CV(x) x
+    #else
+        #define USE_CV(x)
+    #endif
 #else
     #define USE_ACK(x)
-#endif
-
-#ifdef USE_CONDITION_VARIABLES
-    #define USE_CV(x) x
-#else
     #define USE_CV(x)
 #endif
 
