@@ -18,6 +18,8 @@
 #include <time.h>
 #include <limits.h>
 
+#define MILLION 1000000
+
 #define DEFAULT_EXECUTION_TIME 20  // default was 20
 #define DEFAULT_TIME_MULTIPLIER 100000  // default was 100000
 #define UNUSED(x) ((void) x)
@@ -66,8 +68,8 @@ void* SensorSignalReader(void* args);
 void* ChangeDetector(void* args);
 void* MultiChangeDetector(void* arg);
 void* BitfieldChangeDetector(void* arg);
-int toggle_signal(int r);
-int msb_changed(unsigned int current, unsigned int old);
+unsigned int toggle_signal(unsigned int r);
+unsigned int msb_changed(unsigned int current, unsigned int old);
 
 USE_CV(static pthread_mutex_t* signal_mutex);
 USE_CV(static pthread_cond_t* signal_cv);
@@ -98,7 +100,7 @@ int main(int argc, char** argv) {
     use_multis = (N > NTHREADS) && (!use_bitfields);
 
     void* (*target_function)(void*);
-    int open_threads;
+    unsigned int open_threads;
 
     if (use_bitfields) {
         target_function = BitfieldChangeDetector;
@@ -141,7 +143,7 @@ int main(int argc, char** argv) {
     USE_CV(for (unsigned int i = 0; i < N; i++)
            pthread_cond_init(&signal_cv[i], NULL));
 
-    for (int i = 0; i < open_threads; i++) {
+    for (unsigned int i = 0; i < open_threads; i++) {
         p[i].tid = i;
         pthread_create(&sigDet[i], NULL, target_function, (void*) &p[i]);
     }
@@ -162,7 +164,7 @@ int main(int argc, char** argv) {
     usleep(500);
     #endif
 
-    for (int i = 0; i < open_threads; i++) {
+    for (unsigned int i = 0; i < open_threads; i++) {
         pthread_cancel(sigDet[i]);
     }
 
@@ -177,15 +179,15 @@ int main(int argc, char** argv) {
     _exit(0);
 }
 
-int toggle_signal(int r) {
+unsigned int toggle_signal(unsigned int r) {
     /* Toggles the value of signal r.
      * timeStamp[r] is updated before the signal actually changes it's value.
      * Otherwise, the detectors can detect the change with before timeStamp is updated. */
 
     if (use_bitfields) {
-        const int array_idx = r / INT_BIT;
-        const int bit_idx = r % INT_BIT;
-        const int return_value = !((signalArray[array_idx] >> bit_idx) & 1);
+        const unsigned int array_idx = r / INT_BIT;
+        const unsigned int bit_idx = r % INT_BIT;
+        const unsigned int return_value = !((signalArray[array_idx] >> bit_idx) & 1);
 
         gettimeofday(&timeStamp[r], NULL);
         signalArray[array_idx] ^= 1 << bit_idx;
@@ -203,9 +205,9 @@ void* SensorSignalReader(void* arg) {
 
     while (changing_signals) {
         // t in [1, 10]
-        const int t = rand() % 10 + 1;
+        const unsigned int t = rand() % 10 + 1;
         usleep(t * time_multiplier);
-        const int r = rand() % N;
+        const unsigned int r = rand() % N;
 
         USE_CV(pthread_mutex_lock(&signal_mutex[r]));
         USE_ACK(while (!acknowledged[r]) {
@@ -214,7 +216,7 @@ void* SensorSignalReader(void* arg) {
         USE_ACK(acknowledged[r] = 0);
 
         if (toggle_signal(r)) {
-            printf("C %d %lu\n", r, (timeStamp[r].tv_sec) * 1000000 +
+            printf("C %d %lu\n", r, (timeStamp[r].tv_sec) * MILLION +
                    (timeStamp[r].tv_usec));
         }
 
@@ -226,13 +228,13 @@ void* SensorSignalReader(void* arg) {
 
 void* ChangeDetector(void* arg) {
     const parm* p = (parm*) arg;
-    const int target = p->tid;
+    const unsigned int target = p->tid;
 
-    // active waiting until target value changes to 1
     while (1) {
         /* use a temporary variable in order to load signalArray[target] once in
          * each loop */
         unsigned int t;
+        // active waiting until target value changes to 1
         while ((t = signalArray[target]) == oldValues[target]) {}
 
         USE_CV(pthread_mutex_lock(&signal_mutex[target]));
@@ -242,7 +244,7 @@ void* ChangeDetector(void* arg) {
             // signal activated: 0->1
             struct timeval tv;
             gettimeofday(&tv, NULL);
-            printf("D %d %lu\n", target, (tv.tv_sec) * 1000000 + (tv.tv_usec));
+            printf("D %d %lu\n", target, (tv.tv_sec) * MILLION + (tv.tv_usec));
         }
 
         USE_ACK(acknowledged[target] = 1);
@@ -272,7 +274,7 @@ void* MultiChangeDetector(void* arg) {
         if (t) {
             struct timeval tv;
             gettimeofday(&tv, NULL);
-            printf("D %u %lu\n", target, (tv.tv_sec) * 1000000 + (tv.tv_usec));
+            printf("D %u %lu\n", target, (tv.tv_sec) * MILLION + (tv.tv_usec));
         }
 
         USE_ACK(acknowledged[target] = 1);
@@ -288,7 +290,7 @@ static const char LogTable256[256] = {
     LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7)
 };
 
-int msb_changed(unsigned int current, unsigned int old) {
+unsigned int msb_changed(unsigned int current, unsigned int old) {
     /* Use bit-wise XOR to find the different bits between signalArray[target] and
      * oldValues[target]. Return the most significant of them using log2.
      * Kinda faster than gcc's __builtin_clz() */
@@ -319,7 +321,7 @@ void* BitfieldChangeDetector(void* arg) {
             target = (target < end - 1) ? target + 1 : start;
         }
 
-        const int bit_idx = msb_changed(t, oldValues[target]);
+        const unsigned int bit_idx = msb_changed(t, oldValues[target]);
         const unsigned int actual = bit_idx + INT_BIT * target;
         USE_CV(pthread_mutex_lock(&signal_mutex[actual]));
         /* oldValues[target] = t; <-- this way we lose signal changes
@@ -332,7 +334,7 @@ void* BitfieldChangeDetector(void* arg) {
         if ((t >> bit_idx) & 1) {
             struct timeval tv;
             gettimeofday(&tv, NULL);
-            printf("D %u %lu\n", actual, (tv.tv_sec) * 1000000 + (tv.tv_usec));
+            printf("D %u %lu\n", actual, (tv.tv_sec) * MILLION + (tv.tv_usec));
         }
 
         USE_ACK(acknowledged[actual] = 1);
