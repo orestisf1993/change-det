@@ -168,6 +168,7 @@ int main(int argc, char** argv) {
         pthread_cancel(sigDet[i]);
     }
 
+    fflush(stdout);
     _exit(0);
 }
 
@@ -198,7 +199,10 @@ void* SensorSignalReader(void* arg) {
     while (changing_signals) {
         // t in [1, 10]
         const unsigned int t = rand() % 10 + 1;
-        if (time_multiplier) usleep(t * time_multiplier);
+        if (time_multiplier) {
+            usleep(t * time_multiplier);
+        }
+
         const unsigned int r = rand() % N;
 
         USE_CV(pthread_mutex_lock(&signal_mutex[r]));
