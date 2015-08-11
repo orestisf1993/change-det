@@ -7,8 +7,8 @@
     AUTh 2015
 */
 
-// TODO: different executables for each version:
-// a) initial b) multi w/o ack c) multi w/ ack
+/* TODO: different executables for each version: */
+/* a) initial b) multi w/o ack c) multi w/ ack */
 
 #include <pthread.h>
 #include <stdio.h>
@@ -18,8 +18,8 @@
 #include <time.h>
 #include <limits.h>
 
-#define DEFAULT_EXECUTION_TIME 20  // default was 20
-#define DEFAULT_TIME_MULTIPLIER 100000  // default was 100000
+#define DEFAULT_EXECUTION_TIME 20  /* default was 20 */
+#define DEFAULT_TIME_MULTIPLIER 100000  /* default was 100000 */
 #define UNUSED(x) ((void) x)
 
 #define INT_BIT (sizeof (int) * CHAR_BIT)
@@ -33,7 +33,7 @@ static unsigned int* oldValues;
 
 #ifdef USE_ACKNOWLEDGEMENT
     #define USE_ACK(x) x
-    
+
     #ifdef USE_CONDITION_VARIABLES
         #define USE_CV(x) x
     #else
@@ -73,7 +73,7 @@ USE_CV(static pthread_mutex_t* signal_mutex);
 USE_CV(static pthread_cond_t* signal_cv);
 
 int main(int argc, char** argv) {
-    // usage prompt and exit
+    /* usage prompt and exit */
     if (argc < 2) {
         printf("Usage: %s N T E\n"
                "    where:\n"
@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "use_bitfields: %d use_multis: %d\n", use_bitfields,
             use_multis);
 
-    // Allocate signal, time-stamp arrays and thread handles.
+    /* Allocate signal, time-stamp arrays and thread handles. */
     signalArray = calloc(total_N, sizeof(int));
     timeStamp = malloc(N * sizeof(struct timeval));
     oldValues = calloc(total_N, sizeof(int));
@@ -158,7 +158,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "joined\n");
 
     #ifndef USE_ACKNOWLEDGEMENT
-    // Allow the detectors to find the last changes.
+    /* Allow the detectors to find the last changes. */
     usleep(500);
     #endif
 
@@ -202,7 +202,7 @@ void* SensorSignalReader(void* arg) {
     srand(time(NULL));
 
     while (changing_signals) {
-        // t in [1, 10]
+        /* t in [1, 10] */
         const int t = rand() % 10 + 1;
         usleep(t * time_multiplier);
         const int r = rand() % N;
@@ -228,20 +228,22 @@ void* ChangeDetector(void* arg) {
     const parm* p = (parm*) arg;
     const int target = p->tid;
 
-    // active waiting until target value changes to 1
+    /* loop stops with pthread_cancel() call at main() */
     while (1) {
         /* use a temporary variable in order to load signalArray[target] once in
          * each loop */
         unsigned int t;
+        /* active waiting until target value changes to 1 */
         while ((t = signalArray[target]) == oldValues[target]) {}
 
         USE_CV(pthread_mutex_lock(&signal_mutex[target]));
 
         oldValues[target] = t;
         if (t) {
-            // signal activated: 0->1
+            /* signal activated: 0->1 */
             struct timeval tv;
             gettimeofday(&tv, NULL);
+            /*print current time in usecs since the Epoch. */
             printf("D %d %lu\n", target, (tv.tv_sec) * 1000000 + (tv.tv_usec));
         }
 
@@ -292,9 +294,9 @@ int msb_changed(unsigned int current, unsigned int old) {
     /* Use bit-wise XOR to find the different bits between signalArray[target] and
      * oldValues[target]. Return the most significant of them using log2.
      * Kinda faster than gcc's __builtin_clz() */
-    // diff is INT_BIT-bit word to find the log2 of
+    /* diff is INT_BIT-bit word to find the log2 of */
     unsigned int diff = current ^ old;
-    unsigned int t, tt;  // temporaries
+    unsigned int t, tt;  /* temporaries */
 
     if ((tt = diff >> 16)) {
         return (t = tt >> 8) ? 24 + LogTable256[t] : 16 + LogTable256[tt];
