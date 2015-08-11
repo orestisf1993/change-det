@@ -174,7 +174,7 @@ int main(int argc, char** argv) {
 unsigned int toggle_signal(unsigned int r) {
     /* Toggles the value of signal r.
      * timeStamp[r] is updated before the signal actually changes it's value.
-     * Otherwise, the detectors can detect the change with before timeStamp is updated. */
+     * Otherwise, the detectors can detect the change before timeStamp is updated. */
 
     if (use_bitfields) {
         const unsigned int array_idx = r / INT_BIT;
