@@ -168,14 +168,6 @@ int main(int argc, char** argv) {
         pthread_cancel(sigDet[i]);
     }
 
-    free(timeStamp);
-    free(p);
-    free(sigDet);
-    free(oldValues);
-    USE_CV(free(signal_cv));
-    USE_CV(free((signal_mutex)));
-    fflush(stdout);
-
     _exit(0);
 }
 
