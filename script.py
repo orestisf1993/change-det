@@ -172,7 +172,7 @@ def main():
 
             signal_data.append(SignalData(diff, total_elements, total_errors))
 
-            if diff:
+            if len(diff):
                 max_idx = np.argmax(diff)
                 if diff[max_idx] > 50:
                     print("{0}: max diff = {1} at {2} => {3}".format(_, diff[max_idx], max_idx, flow[valid_idx[max_idx]]))
