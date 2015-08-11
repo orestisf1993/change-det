@@ -8,11 +8,12 @@
         TIME_IDX: index of the time of the signal change/detection.
 """
 
-from operator import itemgetter
+import operator
 import re
 # ~ from sys import stderr
 from itertools import groupby
 import collections
+import numpy as np
 
 OUTPUT_NAME = 'out.log'
 TYPE_IDX = 0
@@ -74,8 +75,62 @@ def find_errors(valid_idx, flow):
 
     return total_errors
 
+def set_filtered(get_fun, set_fun, op=operator.ge, compare_arg=0):
+    data = get_fun()
+    data = data[op(data, compare_arg)]
+    set_fun(data)
+    
+
+def plot_data(data):
+    """Plots the data collected by out.log
+
+    Args:
+        data(SignalData): The data containing the diffs.
+
+    """
+
+    y = np.array([i.total_errors / i.total_elements * 100 for i in data])
+    x = range(len(y))
+
+    print("average: {0}, max: {1} most elements: {2}".format(np.average(y), max(y), max(i.total_elements for i in data)))
+    
+    import matplotlib.pyplot as plt
+    import matplotlib as mpl
+    import latexify
+
+    latexify.latexify(mpl)
+
+    t = plt.subplots(nrows=1)
+    fig = t[0]
+    ax = t[1]
+
+    ax.set_xlabel("Signal ID")
+    ax.set_ylabel("Error percentage")
+    ax.set_title("Error percentage for each signal id")
+
+    
+    # ~ ax.plot(x, y, 'ro', linewidth=0.1)
+    ax.scatter(x,y,s=0.1)
+    set_filtered(ax.get_yticks, ax.set_yticks)
+    set_filtered(ax.get_xticks, ax.set_xticks)
+    ax.set_xlim(left=0, right=max(x)*1.01)
+
+    # normal scale
+    # ~ ax.set_ylim(bottom=-max(y)/10, top=max(y)*1.01)
+    
+    # symlog scale
+    ax.set_yscale('symlog')
+    from math import log
+    ax.set_ylim(bottom=-0.1)    
+    
+    plt.tight_layout()
+    latexify.format_axes(ax)
+    plt.savefig("image.pdf")
+    
+
 
 def main():
+# ~ if __name__ == "__main__":
     """Main function."""
     with open(OUTPUT_NAME) as log_file:
         log_string = log_file.read().split('\n')
@@ -89,11 +144,11 @@ def main():
 
     # group entries by their signal id
     log_grouped = groupby(
-        sorted(log_splitted, key=itemgetter(SID_IDX)),
-        itemgetter(SID_IDX)
+        sorted(log_splitted, key=operator.itemgetter(SID_IDX)),
+        operator.itemgetter(SID_IDX)
     )
 
-    SignalData = collections.namedtuple(
+    SignalData = collections.namedtuple(    # pylint: disable=C0103
         'SignalData', 'diff total_elements total_errors'
     )
 
@@ -104,17 +159,24 @@ def main():
     for _, flow in log_grouped:
         flow = sorted(flow,
                       key=lambda x: 10 * x[TIME_IDX] - (x[TYPE_IDX] == 'C'))
-        valid_idx = find_valid(flow)
 
-        total_errors = find_errors(valid_idx, flow)
-        diff = [flow[i + 1][TIME_IDX] - flow[i][TIME_IDX] for i in valid_idx]
-        total_elements = 2 * len(valid_idx)
+        total_elements = len(flow)
+        if total_elements:
+            valid_idx = find_valid(flow)
+    
+            total_errors = find_errors(valid_idx, flow)
+            diff = np.array([flow[i + 1][TIME_IDX] - flow[i][TIME_IDX]
+                             for i in valid_idx])
 
-        signal_data.append(SignalData(diff, total_elements, total_errors))
+            signal_data.append(SignalData(diff, total_elements, total_errors))
 
-        time_sum += sum(diff)
-        errors_sum += total_errors
-        signals_sum += total_elements
+            max_idx = np.argmax(diff)
+            if diff[max_idx] > 50:
+                print("{0}: max diff = {1} at {2} => {3}".format(_, diff[max_idx], max_idx, flow[valid_idx[max_idx]]))
+    
+            time_sum += sum(diff)
+            errors_sum += total_errors
+            signals_sum += total_elements
 
     print(
         "Total delay: {0}\n"
@@ -129,6 +191,7 @@ def main():
             errors_sum / signals_sum * 100
         )
     )
+    # ~ plot_data(signal_data)
 
 
 if __name__ == "__main__":
