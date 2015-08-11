@@ -15,5 +15,146 @@
 \end{description}
 
 \section{ChangeDetector()}
+
+\begin{lstlisting}[language=c, caption={ChangeDetector()}, escapechar=$]
+void* ChangeDetector(void* arg) {
+    const parm* p = (parm*) arg;
+    const int target = p->tid;$\label{line:ChangeDetector-target}$
+
+    /* loop stops with pthread_cancel() call at main() */
+    while (1) {
+        /* use a temporary variable in order to load signalArray[target] once in
+         * each loop */
+        unsigned int t;
+        /* active waiting until target value changes to 1 */
+        while ((t = signalArray[target]) == oldValues[target]) {}
+
+        oldValues[target] = t;
+        if (t) {
+            /* signal activated: 0->1 */
+            struct timeval tv;
+            gettimeofday(&tv, NULL);
+            /*print current time in usecs since the Epoch. */
+            printf("D %d %lu\n", target, (tv.tv_sec) * 1000000 + (tv.tv_usec));
+        }
+    }
+}
+\end{lstlisting}
+
+Όπως φαίνεται στη \hyperref[line:ChangeDetector-target]{γραμμή 
+\ref*{line:ChangeDetector-target}} η μεταβλητή \textit{target} παίρνει σταθερή 
+τιμή κατά την εκτέλεση της συνάρτησης ίση με την τιμή του thread ID. Έτσι, 
+ανοίγοντας αριθμό thread ίσο με τον αριθμό των στοιχείων του 
+\textit{SignalsArray} μπορούμε να αναγνωρίζουμε όλες τις αλλαγές.
+
 \section{MultiChangeDetector()}
+
+\begin{lstlisting}[language=c, caption={MultiChangeDetector()}, escapechar=$]
+void* MultiChangeDetector(void* arg) {
+    const parm* p = (parm*) arg;
+    const unsigned int tid = p->tid;
+    const unsigned int start = tid * (N / NTHREADS)+$    
+    \label{line:MultiChangeDetector-start}$
+                               (tid < N % NTHREADS ? tid : N % NTHREADS);
+    const unsigned int end = start + (N / NTHREADS) + (tid < N % NTHREADS);$
+    \label{line:MultiChangeDetector-end}$
+    unsigned int target = start;
+
+    while (1) {
+        unsigned int t;
+        while ((t = signalArray[target]) == oldValues[target]) {
+            target = (target < end - 1) ? target + 1 : start;
+        }
+
+        oldValues[target] = t;
+        if (t) {
+            struct timeval tv;
+            gettimeofday(&tv, NULL);
+            printf("D %u %lu\n", target, (tv.tv_sec) * 1000000 + (tv.tv_usec));
+        }
+    }
+}
+\end{lstlisting}
+
+Με αυτή τη συνάρτηση το κάθε thread ελέγχει ένα σύνολο στοιχείων με το index 
+\textit{target} να παίρνει τιμές από 
+\hyperref[line:MultiChangeDetector-start]{\textit{start}} μέχρι 
+\hyperref[line:MultiChangeDetector-end]{\textit{end}}
+
 \section{BitfieldChangeDetector()}
+
+\begin{lstlisting}[language=c, caption={BitfieldChangeDetector()}, escapechar=$]
+void* BitfieldChangeDetector(void* arg) {
+    parm* p = (parm*) arg;
+    const unsigned int tid = p->tid;
+    const unsigned int start = tid * (total_N / NTHREADS) +
+                               (tid < total_N % NTHREADS ?
+                                tid : total_N % NTHREADS);
+    const unsigned int end = start + (total_N / NTHREADS) +
+                             (tid < total_N % NTHREADS);
+    unsigned int target = start;
+
+    while (1) {
+        unsigned int t;
+        while ((t = signalArray[target]) == oldValues[target]) {
+            target = (target < end - 1) ? target + 1 : start;
+        }
+
+        const int bit_idx = msb_changed(t, oldValues[target]);
+        const unsigned int actual = bit_idx + INT_BIT * target;
+        /* oldValues[target] = t; <-- this way we lose signal changes
+         * when 2 or more signals change at the same time within a bitfield. */
+        /* if multiple changes happen then msb_changed() each time will find
+         * the change at the most significant bit
+         * because ceil(log2(x)) is the MSB of x */
+        oldValues[target] ^= 1 << bit_idx;
+
+        if ((t >> bit_idx) & 1) {
+            struct timeval tv;
+            gettimeofday(&tv, NULL);
+            printf("D %u %lu\n", actual, (tv.tv_sec) * 1000000 + (tv.tv_usec));
+        }
+    }
+}
+\end{lstlisting}
+
+Το index \textit{target} παίρνει και πάλι με τον ίδιο τρόπο τιμές.
+Η χρήση αυτής της συνάρτησης προϋποθέτει την αλλαγή του κώδικα της 
+\textit{SignalReader()} 
+καθώς διαιρείται το μέγεθος του \textit{SignalArray} κατά \textit{INT\_BIT}. 
+Συγκεκριμένα, χρησιμοποιείται η μεταβλητή 
+\hyperref[lst:total_N]{\textit{use\_bitfields}} για την αλλαγή του μεγέθους του 
+πίνακα και η συνάρτηση \hyperref[lst:togle_signal]{\textit{toggle\_signal()}} 
+για την 
+εναλλαγή των σημάτων του πίνακα.
+\begin{lstlisting}[language=c, caption={Αλλαγή μεγέθους του SignalArray}, 
+escapechar=$, label={lst:total_N}]
+if (use_bitfields) {
+    target_function = BitfieldChangeDetector;
+    open_threads = NTHREADS;
+    total_N = N / INT_BIT + (N % INT_BIT != 0);
+}
+\end{lstlisting}
+\begin{lstlisting}[language=c, caption={toggle\_signal()}, 
+escapechar=$, label={lst:togle_signal}]
+int toggle_signal(int r) {
+    /* Toggles the value of signal r.
+     * timeStamp[r] is updated before the signal actually changes it's value.
+     * Otherwise, the detectors can detect the change with before timeStamp is 
+     updated. */
+
+    if (use_bitfields) {
+        const int array_idx = r / INT_BIT;
+        const int bit_idx = r % INT_BIT;
+        const int return_value = !((signalArray[array_idx] >> bit_idx) & 1);
+
+        gettimeofday(&timeStamp[r], NULL);
+        signalArray[array_idx] ^= 1 << bit_idx;
+
+        return return_value;
+    } else {
+        gettimeofday(&timeStamp[r], NULL);
+        return signalArray[r] ^= 1;
+    }
+}
+\end{lstlisting}
