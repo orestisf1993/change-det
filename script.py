@@ -155,6 +155,8 @@ def main():
     time_sum = 0
     errors_sum = 0
     signals_sum = 0
+    total_changes = 0
+    valid_changes = 0
     signal_data = []
     for _, flow in log_grouped:
         flow = sorted(flow,
@@ -170,23 +172,32 @@ def main():
 
             signal_data.append(SignalData(diff, total_elements, total_errors))
 
-            max_idx = np.argmax(diff)
-            if diff[max_idx] > 50:
-                print("{0}: max diff = {1} at {2} => {3}".format(_, diff[max_idx], max_idx, flow[valid_idx[max_idx]]))
+            if diff:
+                max_idx = np.argmax(diff)
+                if diff[max_idx] > 50:
+                    print("{0}: max diff = {1} at {2} => {3}".format(_, diff[max_idx], max_idx, flow[valid_idx[max_idx]]))
     
             time_sum += sum(diff)
             errors_sum += total_errors
             signals_sum += total_elements
+            total_changes += sum(x[TYPE_IDX] == 'C' for x in flow)
+            valid_changes += len(valid_idx)
 
+    if valid_changes:
+        average_delay = time_sum / valid_changes
+    else:
+        average_delay = "No valid detections"
     print(
         "Total delay: {0}\n"
         "Average delay: {1}\n"
-        "Total signals: {2}\n"
-        "Total errors: {3}\n"
-        "Error percentage: {4}%".format(
+        "Total signal changes: {2}\n"
+        "Total signal detections: {3}\n"
+        "Total errors: {4}\n"
+        "Error percentage: {5}%".format(
             time_sum,
-            time_sum / signals_sum,
-            signals_sum,
+            average_delay,
+            total_changes,
+            signals_sum - total_changes,
             errors_sum,
             errors_sum / signals_sum * 100
         )
