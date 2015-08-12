@@ -45,7 +45,8 @@ void* ChangeDetector(void* arg) {
 \ref*{line:ChangeDetector-target}} η μεταβλητή \textit{target} παίρνει σταθερή 
 τιμή κατά την εκτέλεση της συνάρτησης ίση με την τιμή του thread ID. Έτσι, 
 ανοίγοντας αριθμό thread ίσο με τον αριθμό των στοιχείων του 
-\textit{SignalsArray} μπορούμε να αναγνωρίζουμε όλες τις αλλαγές.
+\textit{SignalsArray} μπορούμε να αναγνωρίζουμε όλες τις αλλαγές. Χρησιμοποιείται 
+το array \textit{oldValues} για να αποθηκεύονται οι παλιές τιμές των σημάτων.
 
 \section{MultiChangeDetector()}
 
@@ -100,7 +101,8 @@ void* BitfieldChangeDetector(void* arg) {
             target = (target < end - 1) ? target + 1 : start;
         }
 
-        const int bit_idx = msb_changed(t, oldValues[target]);
+        const int bit_idx = msb_changed(t, oldValues[target]);$
+        \label{line:BitfieldChangeDetector-msb}$
         const unsigned int actual = bit_idx + INT_BIT * target;
         /* oldValues[target] = t; <-- this way we lose signal changes
          * when 2 or more signals change at the same time within a bitfield. */
@@ -125,8 +127,7 @@ void* BitfieldChangeDetector(void* arg) {
 Συγκεκριμένα, χρησιμοποιείται η μεταβλητή 
 \hyperref[lst:total_N]{\textit{use\_bitfields}} για την αλλαγή του μεγέθους του 
 πίνακα και η συνάρτηση \hyperref[lst:togle_signal]{\textit{toggle\_signal()}} 
-για την 
-εναλλαγή των σημάτων του πίνακα.
+για την εναλλαγή των σημάτων του πίνακα.
 \begin{lstlisting}[language=c, caption={Αλλαγή μεγέθους του SignalArray}, 
 escapechar=$, label={lst:total_N}]
 if (use_bitfields) {
@@ -155,6 +156,45 @@ int toggle_signal(int r) {
     } else {
         gettimeofday(&timeStamp[r], NULL);
         return signalArray[r] ^= 1;
+    }
+}
+\end{lstlisting}
+line:BitfieldChangeDetector-msb
+Για την ανίχνευση των ενεργοποιήσεων χρησιμοποιείται η συνάρτηση 
+\hyperref[lst:msb_changed]{\textit{msb\_changed()}}. H \textit{msb\_changed()} 
+χρησιμοποιεί 
+\href{https://graphics.stanford.edu/~seander/bithacks.html#IntegerLogLookup}{lookup
+ table} για τον γρηγορότερο υπολογισμό του log2. H \textit{msb\_changed()} 
+ καλείται στη
+ \hyperref[line:BitfieldChangeDetector-msb]{γραμμή 
+ \ref*{line:BitfieldChangeDetector-msb}} για την εύρεση της αλλαγής μεταξύ της 
+ προηγούμενης και της τρέχουσας τιμής του bitfield.
+ Τα ενεργοποιημένα bits του αποτελέσματος $A \oplus B$ είναι τα διαφορετικά bit 
+ μεταξύ των bitfields $A$ και $B$.
+ Έτσι, παίρνοντας κάθε φορά το ακέραιο μέρος του $\log_2 \left( A \oplus B 
+ \right)$ 
+ μπορούμε να βρίσκουμε το πιο σημαντικό αλλαγμένο bit μεταξύ 2 καταστάσεων.
+\begin{lstlisting}[language=c, caption={msb\_changed()}, 
+escapechar=$, label={lst:msb_changed}]
+#define LT(n) n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n
+static const char LogTable256[256] = {
+    -1, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
+    LT(4), LT(5), LT(5), LT(6), LT(6), LT(6), LT(6),
+    LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7)
+};
+
+unsigned int msb_changed(unsigned int current, unsigned int old) {
+    /* Use bit-wise XOR to find the different bits between signalArray[target] and
+     * oldValues[target]. Return the most significant of them using log2.
+     * Kinda faster than gcc's __builtin_clz() */
+    /* diff is INT_BIT-bit word to find the log2 of */
+    unsigned int diff = current ^ old;
+    unsigned int t, tt;  /* temporaries */
+
+    if ((tt = diff >> 16)) {
+        return (t = tt >> 8) ? 24 + LogTable256[t] : 16 + LogTable256[tt];
+    } else {
+        return (t = diff >> 8) ? 8 + LogTable256[t] : LogTable256[diff];
     }
 }
 \end{lstlisting}
