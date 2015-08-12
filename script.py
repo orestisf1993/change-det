@@ -134,8 +134,6 @@ def plot_data(data):
 
 
 def process_output(output_name='out.log'):
-# ~ if __name__ == "__main__":
-    """Main function."""
     with open(output_name) as log_file:
         log_string = log_file.read().split('\n')
         log_splitted = (
@@ -161,7 +159,7 @@ def process_output(output_name='out.log'):
     signals_sum = 0
     total_changes = 0
     valid_changes = 0
-    average_time_lag = 0
+    change_delay = 0
     signal_data = []
     for _, flow in log_grouped:
         flow = sorted(flow,
@@ -188,12 +186,12 @@ def process_output(output_name='out.log'):
             signals_sum += total_elements
             total_changes += len(changed)
             valid_changes += len(valid_idx)
-            average_time_lag += sum([changed[i+1][TIME_IDX] - changed[i][TIME_IDX] for i in range(len(changed)-1)])
-    average_time_lag = average_time_lag / total_changes
+            change_delay += sum([changed[i+1][TIME_IDX] - changed[i][TIME_IDX] for i in range(len(changed)-1)])
+    change_delay = change_delay / total_changes
     if valid_changes:
-        average_delay = time_sum / valid_changes
+        delay = time_sum / valid_changes
     else:
-        average_delay = "No valid detections"
+        delay = "No valid detections"
     print(
         "Total delay: {0}\n"
         "Average delay: {1}\n"
@@ -203,15 +201,17 @@ def process_output(output_name='out.log'):
         "Error percentage: {5}%\n"
         "Average delay between changes for the same signal: {6} usec".format(
             time_sum,
-            average_delay,
+            delay,
             total_changes,
             signals_sum - total_changes,
             errors_sum,
             errors_sum / signals_sum * 100,
-            average_time_lag
+            change_delay
         )
     )
-    # ~ plot_data(signal_data)
+
+    return (delay, total_changes, errors_sum / signals_sum * 100, change_delay)
+    
 def execute_pace(arguments):
     from subprocess import call
     import os.path
@@ -244,7 +244,7 @@ def execute_all():
         arguments = {key: t[idx] for idx, key in enumerate(options.keys())}
         output_name = execute_pace(arguments)
         print(output_name, file=stderr)
-        process_output(output_name)
+        delay, total_changes, error_p, ch_delay = process_output(output_name)
     
 def main():
     from sys import argv
