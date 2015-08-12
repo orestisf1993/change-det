@@ -212,6 +212,34 @@ def process_output(output_name='out.log'):
         )
     )
     # ~ plot_data(signal_data)
+def execute_pace(n, time_mult, nthreads, duration=20):
+    from subprocess import call
+    import os.path
+    
+    fname = r"results/out{0}_{1}_{2}_{3}.log".format(n, time_mult, duration, nthreads)
+    if not (CHECK_FILE_EXISTS and os.path.isfile(fname)):
+        cmd = r"./pace {0} {1} {2} {3} > {4}".format(n, time_mult, duration, nthreads, fname)
+        print(cmd, file=stderr)
+        try:
+            call(cmd, shell=True)
+        except:
+            # make sure we don't leave a garbage file
+            from os import remove
+            remove(fname)
+            raise
+    return fname
+    
+def execute_all():
+    options = {"nthreads": [1, 2, 4, 8],
+               "time_mult": [0, 10, 100, 1000, 10000],
+               "execution_time": [1],
+               'N': list(range(1,8)) + list(range(8, 32, 4)) + [32, 10**2, 10**3, 10**4]
+               }
+    for t in itertools.product(*options.values()):
+        d = {key: t[idx] for idx, key in enumerate(options.keys())}
+        output_name = execute_pace(d["N"], d["time_mult"], d["nthreads"], d["execution_time"])
+        print(output_name, file=stderr)
+        process_output(output_name)
     
 def main():
     from sys import argv
