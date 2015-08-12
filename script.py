@@ -2,7 +2,7 @@
 """This module parses the output log of pace and prints various statistical data.
 
     Attributes:
-        OUTPUT_NAME: name of the log file to be read.
+        output_name: name of the log file to be read.
         TYPE_IDX: index of the signal type ("C"/"D").
         SID_IDX: index of the signal id.
         TIME_IDX: index of the time of the signal change/detection.
@@ -10,16 +10,16 @@
 
 import operator
 import re
-# ~ from sys import stderr
-from itertools import groupby
+from sys import stderr
+import itertools
 import collections
 import numpy as np
 
-OUTPUT_NAME = 'out.log'
 TYPE_IDX = 0
 SID_IDX = 1
 TIME_IDX = 2
-
+PRINT_ERRORS = False
+CHECK_FILE_EXISTS = True
 
 def find_valid(flow):
     """Finds correct "CD" sub-sequences of changed and detected signals.
@@ -51,14 +51,16 @@ def find_errors(valid_idx, flow):
 
     # valid_idx is empty but flow isn't
     if not valid_idx:
-        for element in flow:
-            print(element)
+        if PRINT_ERRORS:
+            for element in flow:
+                print(element)
         return len(flow)
 
     # valid_idx[0] isn't 0
     total_errors = valid_idx[0]
-    for error in range(total_errors):
-        print(flow[error])
+    if PRINT_ERRORS:
+        for error in range(total_errors):
+            print(flow[error])
 
     # all lost errors in between
     for i in range(1, len(valid_idx)):
@@ -66,12 +68,14 @@ def find_errors(valid_idx, flow):
         total_errors += errors
         for error in range(1, errors + 1):
             error_idx = valid_idx[i - 1] + 2 * error
-            print(flow[error_idx])
+            if PRINT_ERRORS:
+                print(flow[error_idx])
 
     # last elements in flow not found
     for error in flow[valid_idx[-1] + 2:]:
         total_errors += 1
-        print(error)
+        if PRINT_ERRORS:
+            print(error)
 
     return total_errors
 
@@ -129,10 +133,10 @@ def plot_data(data):
     
 
 
-def main():
+def process_output(output_name='out.log'):
 # ~ if __name__ == "__main__":
     """Main function."""
-    with open(OUTPUT_NAME) as log_file:
+    with open(output_name) as log_file:
         log_string = log_file.read().split('\n')
         log_splitted = (
             tuple(line[0]) +    # line[0] is 'C' or 'D'
@@ -143,7 +147,7 @@ def main():
         del log_string
 
     # group entries by their signal id
-    log_grouped = groupby(
+    log_grouped = itertools.groupby(
         sorted(log_splitted, key=operator.itemgetter(SID_IDX)),
         operator.itemgetter(SID_IDX)
     )
@@ -157,6 +161,7 @@ def main():
     signals_sum = 0
     total_changes = 0
     valid_changes = 0
+    average_time_lag = 0
     signal_data = []
     for _, flow in log_grouped:
         flow = sorted(flow,
@@ -175,14 +180,16 @@ def main():
             if len(diff):
                 max_idx = np.argmax(diff)
                 if diff[max_idx] > 50:
-                    print("{0}: max diff = {1} at {2} => {3}".format(_, diff[max_idx], max_idx, flow[valid_idx[max_idx]]))
-    
+                    print("{0}: max diff = {1} at {2} => {3}".format(_, diff[max_idx], max_idx, flow[valid_idx[max_idx]]), file=stderr)
+            changed = [x for x in flow if x[TYPE_IDX] == 'C']
+            
             time_sum += sum(diff)
             errors_sum += total_errors
             signals_sum += total_elements
-            total_changes += sum(x[TYPE_IDX] == 'C' for x in flow)
+            total_changes += len(changed)
             valid_changes += len(valid_idx)
-
+            average_time_lag += sum([changed[i+1][TIME_IDX] - changed[i][TIME_IDX] for i in range(len(changed)-1)])
+    average_time_lag = average_time_lag / total_changes
     if valid_changes:
         average_delay = time_sum / valid_changes
     else:
@@ -193,17 +200,26 @@ def main():
         "Total signal changes: {2}\n"
         "Total signal detections: {3}\n"
         "Total errors: {4}\n"
-        "Error percentage: {5}%".format(
+        "Error percentage: {5}%\n"
+        "Average delay between changes for the same signal: {6} usec".format(
             time_sum,
             average_delay,
             total_changes,
             signals_sum - total_changes,
             errors_sum,
-            errors_sum / signals_sum * 100
+            errors_sum / signals_sum * 100,
+            average_time_lag
         )
     )
     # ~ plot_data(signal_data)
-
+    
+def main():
+    from sys import argv
+    if argv[1] == 'execute':
+        execute_all()
+    else:
+        output_name = 'out.log'
+        process_output(output_name)
 
 if __name__ == "__main__":
     main()
