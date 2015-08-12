@@ -21,6 +21,7 @@
 #define MILLION 1000000
 #define DEFAULT_EXECUTION_TIME 20  /* default was 20 */
 #define DEFAULT_TIME_MULTIPLIER 100000  /* default was 100000 */
+#define DEFAULT_requested_threads 5
 
 #define UNUSED(x) ((void) x)
 
@@ -57,12 +58,11 @@ static unsigned int total_N;
 
 static unsigned int time_multiplier = DEFAULT_TIME_MULTIPLIER;
 static unsigned int execution_time = DEFAULT_EXECUTION_TIME;
+static unsigned int requested_threads = DEFAULT_requested_threads;
 
 /* when execution time is over changing_signals is set to 0
  * and signals' values stop changing before cancelling the detectors. */
 static volatile int changing_signals = 1;
-
-#define NTHREADS 5
 
 void* SensorSignalReader(void* args);
 void* ChangeDetector(void* args);
@@ -77,12 +77,13 @@ USE_CV(static pthread_cond_t* signal_cv);
 int main(int argc, char** argv) {
     /* usage prompt and exit */
     if (argc < 2) {
-        printf("Usage: %s N T E\n"
+        printf("Usage: %s N T E NTHR\n"
                "    where:\n"
                "        N: number of signals to monitor\n"
                "        T(optional): time multiplier. Signal interval between T"
                " and 10 * T usec\n"
                "        E(optional): execution duration\n"
+               "        NTHR(optional): number of threads\n"
                , argv[0]);
         return 1;
     }
@@ -96,19 +97,19 @@ int main(int argc, char** argv) {
         }
     }
 
-    use_bitfields = (N / NTHREADS) >= INT_BIT;
-    use_multis = (N > NTHREADS) && (!use_bitfields);
+    use_bitfields = (N / requested_threads) >= INT_BIT;
+    use_multis = (N > requested_threads) && (!use_bitfields);
 
     void* (*target_function)(void*);
     unsigned int open_threads;
 
     if (use_bitfields) {
         target_function = BitfieldChangeDetector;
-        open_threads = NTHREADS;
+        open_threads = requested_threads;
         total_N = N / INT_BIT + (N % INT_BIT != 0);
     } else if (use_multis) {
         target_function = MultiChangeDetector;
-        open_threads = NTHREADS;
+        open_threads = requested_threads;
         total_N = N;
     } else {
         target_function = ChangeDetector;
@@ -255,9 +256,9 @@ void* ChangeDetector(void* arg) {
 void* MultiChangeDetector(void* arg) {
     const parm* p = (parm*) arg;
     const unsigned int tid = p->tid;
-    const unsigned int start = tid * (N / NTHREADS) +
-                               (tid < N % NTHREADS ? tid : N % NTHREADS);
-    const unsigned int end = start + (N / NTHREADS) + (tid < N % NTHREADS);
+    const unsigned int start = tid * (N / requested_threads) +
+                               (tid < N % requested_threads ? tid : N % requested_threads);
+    const unsigned int end = start + (N / requested_threads) + (tid < N % requested_threads);
     unsigned int target = start;
 
     while (1) {
@@ -306,11 +307,11 @@ unsigned int msb_changed(unsigned int current, unsigned int old) {
 void* BitfieldChangeDetector(void* arg) {
     parm* p = (parm*) arg;
     const unsigned int tid = p->tid;
-    const unsigned int start = tid * (total_N / NTHREADS) +
-                               (tid < total_N % NTHREADS ?
-                                tid : total_N % NTHREADS);
-    const unsigned int end = start + (total_N / NTHREADS) +
-                             (tid < total_N % NTHREADS);
+    const unsigned int start = tid * (total_N / requested_threads) +
+                               (tid < total_N % requested_threads ?
+                                tid : total_N % requested_threads);
+    const unsigned int end = start + (total_N / requested_threads) +
+                             (tid < total_N % requested_threads);
     unsigned int target = start;
 
     while (1) {
