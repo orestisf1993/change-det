@@ -212,13 +212,18 @@ def process_output(output_name='out.log'):
         )
     )
     # ~ plot_data(signal_data)
-def execute_pace(n, time_mult, nthreads, duration=20):
+def execute_pace(arguments):
     from subprocess import call
     import os.path
+
+    n = arguments['N']
+    time_mult = arguments['time_mult']
+    nthreads = arguments['nthreads']
+    execution_time = arguments['execution_time']
     
-    fname = r"results/out{0}_{1}_{2}_{3}.log".format(n, time_mult, duration, nthreads)
+    fname = r"results/out{0}_{1}_{2}_{3}.log".format(n, time_mult, execution_time, nthreads)
     if not (CHECK_FILE_EXISTS and os.path.isfile(fname)):
-        cmd = r"./pace {0} {1} {2} {3} > {4}".format(n, time_mult, duration, nthreads, fname)
+        cmd = r"./pace {0} {1} {2} {3} > {4}".format(n, time_mult, execution_time, nthreads, fname)
         print(cmd, file=stderr)
         try:
             call(cmd, shell=True)
@@ -236,8 +241,8 @@ def execute_all():
                'N': list(range(1,8)) + list(range(8, 32, 4)) + [32, 10**2, 10**3, 10**4]
                }
     for t in itertools.product(*options.values()):
-        d = {key: t[idx] for idx, key in enumerate(options.keys())}
-        output_name = execute_pace(d["N"], d["time_mult"], d["nthreads"], d["execution_time"])
+        arguments = {key: t[idx] for idx, key in enumerate(options.keys())}
+        output_name = execute_pace(arguments)
         print(output_name, file=stderr)
         process_output(output_name)
     
