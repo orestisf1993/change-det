@@ -21,7 +21,7 @@
 #define MILLION 1000000
 #define DEFAULT_EXECUTION_TIME 20  /* default was 20 */
 #define DEFAULT_TIME_MULTIPLIER 100000  /* default was 100000 */
-#define DEFAULT_requested_threads 5
+#define DEFAULT_REQUESTED_THREADS 4
 
 #define UNUSED(x) ((void) x)
 
@@ -58,7 +58,7 @@ static unsigned int total_N;
 
 static unsigned int time_multiplier = DEFAULT_TIME_MULTIPLIER;
 static unsigned int execution_time = DEFAULT_EXECUTION_TIME;
-static unsigned int requested_threads = DEFAULT_requested_threads;
+static unsigned int requested_threads = DEFAULT_REQUESTED_THREADS;
 
 /* when execution time is over changing_signals is set to 0
  * and signals' values stop changing before cancelling the detectors. */
@@ -92,10 +92,14 @@ int main(int argc, char** argv) {
 
     if (argc > 2) {
         time_multiplier = (unsigned int)strtoul(argv[2], NULL, 0);
-        if (argc > 3) {
-            execution_time = (unsigned int)strtoul(argv[3], NULL, 0);
-        }
     }
+    if (argc > 3) {
+        execution_time = (unsigned int)strtoul(argv[3], NULL, 0);
+    }
+    if (argc > 4){
+        requested_threads = (unsigned int)strtoul(argv[4], NULL, 0);
+    }
+    
 
     use_bitfields = (N / requested_threads) >= INT_BIT;
     use_multis = (N > requested_threads) && (!use_bitfields);
@@ -242,7 +246,7 @@ void* ChangeDetector(void* arg) {
             /* signal activated: 0->1 */
             struct timeval tv;
             gettimeofday(&tv, NULL);
-            /*print current time in usecs since the Epoch. */
+            /* print current time in usecs since the Epoch. */
             printf("D %d %lu\n", target, (tv.tv_sec) * MILLION + (tv.tv_usec));
         }
 
