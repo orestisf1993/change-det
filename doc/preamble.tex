@@ -3,6 +3,9 @@
 
 % packages
 
+\usepackage[textwidth=15cm]{geometry}
+\usepackage{subfig}
+
 % https://www.ctan.org/pkg/inputenc
 \usepackage[utf8]{inputenc}
 
@@ -18,7 +21,7 @@
 % provides LaTeX the ability to create hyperlinks within the document.
 % https://www.ctan.org/pkg/hyperref
 % http://en.wikibooks.org/wiki/LaTeX/Hyperlinks#Hyperref
-\usepackage{hyperref}
+\usepackage[bookmarks=true,colorlinks=true]{hyperref}
 % for going to the top of an image when a figure reference is clicked: http://stackoverflow.com/a/21251925/3430986%
 \usepackage{caption}
 % http://tex.stackexchange.com/questions/118713/is-microtype-fully-supported-now-by-xelatex-if-not-how-can-i-keep-myself-up-to
@@ -97,7 +100,7 @@
   frame=single,                    % adds a frame around the code
   keepspaces=true,                 % keeps spaces in text, useful for keeping indentation of code (possibly needs columns=flexible)
   keywordstyle=\color{blue},       % keyword style
-  language=Octave,                 % the language of the code
+  language=c,                 % the language of the code
   numbers=left,                    % where to put the line-numbers; possible values are (none, left, right)
   numbersep=5pt,                   % how far the line-numbers are from the code
   numberstyle=\tiny\color{mygray}, % the style that is used for the line-numbers
