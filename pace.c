@@ -47,7 +47,7 @@ static unsigned int* oldValues;
     #define USE_CV(x)
 #endif
 
-USE_ACK(static volatile unsigned int* acknowledged);
+USE_ACK(static volatile unsigned int* acknowledged;)
 
 static struct timeval* timeStamp;
 
@@ -71,8 +71,8 @@ void* BitfieldChangeDetector(void* arg);
 unsigned int toggle_signal(unsigned int r);
 unsigned int msb_changed(unsigned int current, unsigned int old);
 
-USE_CV(static pthread_mutex_t* signal_mutex);
-USE_CV(static pthread_cond_t* signal_cv);
+USE_CV(static pthread_mutex_t* signal_mutex;)
+USE_CV(static pthread_cond_t* signal_cv;)
 
 int main(int argc, char** argv) {
     /* usage prompt and exit */
@@ -132,21 +132,21 @@ int main(int argc, char** argv) {
     timeStamp = malloc(N * sizeof(struct timeval));
     oldValues = calloc(total_N, sizeof(int));
 
-    USE_ACK(acknowledged = malloc(N * sizeof(int)));
-    USE_ACK(for (unsigned int i = 0; i < N; i++) acknowledged[i] = 1);
+    USE_ACK(acknowledged = malloc(N * sizeof(int));)
+    USE_ACK(for (unsigned int i = 0; i < N; i++) acknowledged[i] = 1;)
 
     parm* p = malloc(open_threads * sizeof(parm));
     pthread_t sigGen;
     pthread_t* sigDet = malloc(open_threads * sizeof(pthread_t));
 
-    USE_CV(signal_mutex = malloc(N * sizeof(pthread_mutex_t)));
-    USE_CV(signal_cv = malloc(N * sizeof(pthread_cond_t)));
+    USE_CV(signal_mutex = malloc(N * sizeof(pthread_mutex_t));)
+    USE_CV(signal_cv = malloc(N * sizeof(pthread_cond_t));)
 
     /* Initialize mutex and condition variable objects */
     USE_CV(for (unsigned int i = 0; i < N; i++)
-           pthread_mutex_init(&signal_mutex[i], NULL));
+           pthread_mutex_init(&signal_mutex[i], NULL);)
     USE_CV(for (unsigned int i = 0; i < N; i++)
-           pthread_cond_init(&signal_cv[i], NULL));
+           pthread_cond_init(&signal_cv[i], NULL);)
 
     for (unsigned int i = 0; i < open_threads; i++) {
         p[i].tid = i;
@@ -210,18 +210,18 @@ void* SensorSignalReader(void* arg) {
 
         const unsigned int r = rand() % N;
 
-        USE_CV(pthread_mutex_lock(&signal_mutex[r]));
+        USE_CV(pthread_mutex_lock(&signal_mutex[r]);)
         USE_ACK(while (!acknowledged[r]) {
         USE_CV(pthread_cond_wait(&signal_cv[r], &signal_mutex[r]);)
-        });
-        USE_ACK(acknowledged[r] = 0);
+        })
+        USE_ACK(acknowledged[r] = 0;)
 
         if (toggle_signal(r)) {
             printf("C %d %lu\n", r, (timeStamp[r].tv_sec) * MILLION +
                    (timeStamp[r].tv_usec));
         }
 
-        USE_CV(pthread_mutex_unlock(&signal_mutex[r]));
+        USE_CV(pthread_mutex_unlock(&signal_mutex[r]);)
     }
 
     pthread_exit(NULL);
@@ -250,10 +250,10 @@ void* ChangeDetector(void* arg) {
             printf("D %d %lu\n", target, (tv.tv_sec) * MILLION + (tv.tv_usec));
         }
 
-        USE_ACK(acknowledged[target] = 1);
+        USE_ACK(acknowledged[target] = 1;)
 
-        USE_CV(pthread_cond_signal(&signal_cv[target]));
-        USE_CV(pthread_mutex_unlock(&signal_mutex[target]));
+        USE_CV(pthread_cond_signal(&signal_cv[target]);)
+        USE_CV(pthread_mutex_unlock(&signal_mutex[target]);)
     }
 }
 
@@ -280,9 +280,9 @@ void* MultiChangeDetector(void* arg) {
             printf("D %u %lu\n", target, (tv.tv_sec) * MILLION + (tv.tv_usec));
         }
 
-        USE_ACK(acknowledged[target] = 1);
-        USE_CV(pthread_cond_signal(&signal_cv[target]));
-        USE_CV(pthread_mutex_unlock(&signal_mutex[target]));
+        USE_ACK(acknowledged[target] = 1;)
+        USE_CV(pthread_cond_signal(&signal_cv[target]);)
+        USE_CV(pthread_mutex_unlock(&signal_mutex[target]);)
     }
 }
 
@@ -326,7 +326,7 @@ void* BitfieldChangeDetector(void* arg) {
 
         const unsigned int bit_idx = msb_changed(t, oldValues[target]);
         const unsigned int actual = bit_idx + INT_BIT * target;
-        USE_CV(pthread_mutex_lock(&signal_mutex[actual]));
+        USE_CV(pthread_mutex_lock(&signal_mutex[actual]);)
         /* oldValues[target] = t; <-- this way we lose signal changes
          * when 2 or more signals change at the same time within a bitfield. */
         /* if multiple changes happen then msb_changed() each time will find
@@ -340,8 +340,8 @@ void* BitfieldChangeDetector(void* arg) {
             printf("D %u %lu\n", actual, (tv.tv_sec) * MILLION + (tv.tv_usec));
         }
 
-        USE_ACK(acknowledged[actual] = 1);
-        USE_CV(pthread_cond_signal(&signal_cv[actual]));
-        USE_CV(pthread_mutex_unlock(&signal_mutex[actual]));
+        USE_ACK(acknowledged[actual] = 1;)
+        USE_CV(pthread_cond_signal(&signal_cv[actual]);)
+        USE_CV(pthread_mutex_unlock(&signal_mutex[actual]);)
     }
 }
