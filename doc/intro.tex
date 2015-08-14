@@ -3,13 +3,13 @@
 Στην άσκηση αυτή αναζητούμε την οριακή συμπεριφορά του υπολογιστή σε πραγματικό 
 χρόνο.
 
-Θεωρούμε ένα array \textit{SignalsArray} από signals που έχουν τιμή 0 
+Θεωρούμε ένα array \lstinline!SignalsArray! από signals που έχουν τιμή 0 
 ή 1 ενώ κατά την εκκίνηση του προγράμματος είναι όλα μηδενισμένα. Στην αρχική 
 έκδοση του 
-κώδικα ένα thread, που τρέχει την συνάρτηση \textit{SensorSignalReader()}, 
+κώδικα ένα thread, που τρέχει την συνάρτηση \lstinline!SensorSignalReader()!, 
 αλλάζει τυχαία στοιχεία του array 
-\textit{SignalsArray} και ένα άλλο thread τρέχει την συνάρτηση 
-\textit{ChangeDetector()} που προσπαθεί να ανιχνεύσει τις αλλαγές στο array.
+\lstinline!SignalsArray! και ένα άλλο thread τρέχει την συνάρτηση 
+\lstinline!ChangeDetector()! που προσπαθεί να ανιχνεύσει τις αλλαγές στο array.
 
 Παρουσιάζεται η αρχική έκδοση του κώδικα:
 

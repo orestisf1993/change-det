@@ -1,15 +1,15 @@
 \chapter{Αναγνώριση περισσότερων σημάτων}
 
-Για την υποστήριξη πολλών σημάτων στο \textit{SignalsArray} χρησιμοποιούμε 1 από 
+Για την υποστήριξη πολλών σημάτων στο \lstinline!SignalsArray! χρησιμοποιούμε 1 από 
 τις εξής 3 συναρτήσεις:
 \begin{description}
 	\item[ChangeDetector()]: τροποποιημένη έκδοση της αρχικής 
-	\textit{ChangeDetector()} που ελέγχει 1 στοιχείο του πίνακα σύμφωνα με τα 
+	\lstinline!ChangeDetector()! που ελέγχει 1 στοιχείο του πίνακα σύμφωνα με τα 
 	ορίσματά της.
 	\item[MultiChangeDetector()]: ελέγχει έναν αριθμό στοιχείων σύμφωνα με τα 
 	ορίσματά της.
 	\item[BitfieldChangeDetector()]: ελέγχει ένα αριθμό bitfields που το καθένα 
-	αντιπροσωπεύει \textit{INT\_BIT} στοιχεία του πίνακα (όπου \textit{INT\_BIT} 
+	αντιπροσωπεύει \lstinline!INT\_BIT! στοιχεία του πίνακα (όπου \lstinline!INT\_BIT! 
 	ο 
 	αριθμός bit σε έναν int).
 \end{description}
@@ -19,7 +19,7 @@
 \begin{lstlisting}[language=c, caption={ChangeDetector()}, escapechar=$]
 void* ChangeDetector(void* arg) {
     const parm* p = (parm*) arg;
-    const int target = p->tid;$\label{line:ChangeDetector-target}$
+    const unsigned int target = p->tid;$\label{line:ChangeDetector-target}$
 
     /* loop stops with pthread_cancel() call at main() */
     while (1) {
@@ -34,8 +34,8 @@ void* ChangeDetector(void* arg) {
             /* signal activated: 0->1 */
             struct timeval tv;
             gettimeofday(&tv, NULL);
-            /*print current time in usecs since the Epoch. */
-            printf("D %d %lu\n", target, (tv.tv_sec) * 1000000 + (tv.tv_usec));
+            /* print current time in usecs since the Epoch. */
+            printf("D %d %lu\n", target, (tv.tv_sec) * MILLION + (tv.tv_usec));
         }
     }
 }
@@ -54,10 +54,11 @@ void* ChangeDetector(void* arg) {
 void* MultiChangeDetector(void* arg) {
     const parm* p = (parm*) arg;
     const unsigned int tid = p->tid;
-    const unsigned int start = tid * (N / NTHREADS)+$    
+    const unsigned int start = tid * (N / requested_threads) +
+                               (tid < N % requested_threads ? tid : N %$ 
+                               $ requested_threads);$    
     \label{line:MultiChangeDetector-start}$
-                               (tid < N % NTHREADS ? tid : N % NTHREADS);
-    const unsigned int end = start + (N / NTHREADS) + (tid < N % NTHREADS);$
+    const unsigned int end = start + (N / requested_threads) + (tid < N % requested_threads);$
     \label{line:MultiChangeDetector-end}$
     unsigned int target = start;
 
@@ -71,7 +72,7 @@ void* MultiChangeDetector(void* arg) {
         if (t) {
             struct timeval tv;
             gettimeofday(&tv, NULL);
-            printf("D %u %lu\n", target, (tv.tv_sec) * 1000000 + (tv.tv_usec));
+            printf("D %u %lu\n", target, (tv.tv_sec) * MILLION + (tv.tv_usec));
         }
     }
 }
@@ -88,11 +89,11 @@ void* MultiChangeDetector(void* arg) {
 void* BitfieldChangeDetector(void* arg) {
     parm* p = (parm*) arg;
     const unsigned int tid = p->tid;
-    const unsigned int start = tid * (total_N / NTHREADS) +
-                               (tid < total_N % NTHREADS ?
-                                tid : total_N % NTHREADS);
-    const unsigned int end = start + (total_N / NTHREADS) +
-                             (tid < total_N % NTHREADS);
+    const unsigned int start = tid * (total_N / requested_threads) +
+                               (tid < total_N % requested_threads ?
+                                tid : total_N % requested_threads);
+    const unsigned int end = start + (total_N / requested_threads) +
+                             (tid < total_N % requested_threads);
     unsigned int target = start;
 
     while (1) {
@@ -101,7 +102,7 @@ void* BitfieldChangeDetector(void* arg) {
             target = (target < end - 1) ? target + 1 : start;
         }
 
-        const int bit_idx = msb_changed(t, oldValues[target]);$
+        const unsigned int bit_idx = msb_changed(t, oldValues[target]);$
         \label{line:BitfieldChangeDetector-msb}$
         const unsigned int actual = bit_idx + INT_BIT * target;
         /* oldValues[target] = t; <-- this way we lose signal changes
@@ -114,7 +115,7 @@ void* BitfieldChangeDetector(void* arg) {
         if ((t >> bit_idx) & 1) {
             struct timeval tv;
             gettimeofday(&tv, NULL);
-            printf("D %u %lu\n", actual, (tv.tv_sec) * 1000000 + (tv.tv_usec));
+            printf("D %u %lu\n", actual, (tv.tv_sec) * MILLION + (tv.tv_usec));
         }
     }
 }
@@ -159,12 +160,11 @@ int toggle_signal(int r) {
     }
 }
 \end{lstlisting}
-line:BitfieldChangeDetector-msb
 Για την ανίχνευση των ενεργοποιήσεων χρησιμοποιείται η συνάρτηση 
-\hyperref[lst:msb_changed]{\textit{msb\_changed()}}. H \textit{msb\_changed()} 
+\hyperref[lst:msb_changed]{\lstinline!msb\_changed()!}. H \lstinline!msb\_changed()!
 χρησιμοποιεί 
 \href{https://graphics.stanford.edu/~seander/bithacks.html#IntegerLogLookup}{lookup
- table} για τον γρηγορότερο υπολογισμό του log2. H \textit{msb\_changed()} 
+ table} για τον γρηγορότερο υπολογισμό του log2. H \lstinline!msb\_changed()!
  καλείται στη
  \hyperref[line:BitfieldChangeDetector-msb]{γραμμή 
  \ref*{line:BitfieldChangeDetector-msb}} για την εύρεση της αλλαγής μεταξύ της 
