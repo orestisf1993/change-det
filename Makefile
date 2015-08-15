@@ -1,6 +1,7 @@
-# ~ OPTI = -m64 -O0 -g -gdwarf-3 -fno-exceptions
+# OPTI = -m64 -O0 -g -gdwarf-3
 OPTI = -m64 -O3 -fdiagnostics-color=auto
-DEFINES = -DUSE_ACKNOWLEDGEMENT -DUSE_CONDITION_VARIABLES
+# uncomment or build with: DEFINES=-DUSE_ACKNOWLEDGEMENT make -B
+# DEFINES = -DUSE_ACKNOWLEDGEMENT
 WARN = -pedantic -Wextra -Wall -Wpointer-arith -Wformat -Wfloat-equal -Winit-self \
 -Wcast-qual -Wwrite-strings -Wshadow -Wstrict-prototypes -Wmissing-prototypes -Wundef \
 -Wunreachable-code -Wbad-function-cast -Wstrict-overflow=5 -Winline -Wundef -Wnested-externs \
