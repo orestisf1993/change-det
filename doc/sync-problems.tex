@@ -1,0 +1,124 @@
+\chapter{Προβλήματα συγχρονισμού}
+
+Στην αρχική έκδοση του κώδικα δεν μπορεί να γίνει αλλαγή σημάτων σε διάστημα 
+μικρότερο των 0.1 δευτερολέπτων. Στις σύγχρονες CPU ο χρόνος αυτός είναι 
+υπεραρκετός για να εντοπιστεί η αλλαγή του σήματος σύμφωνα με τις συναρτήσεις 
+που 
+αναφέρθηκαν. Ωστόσο, καθώς ο ελάχιστος χρόνος αναμονής μειώνεται, αυξάνεται η 
+πιθανότητα να "χαθούν" μερικές αλλαγές σημάτων.
+
+Αυτό συμβαίνει καθώς είναι δυνατό η \lstinline!SensorSignalReader()! να 
+ενεργοποιήσει μια τιμή ενός σήματος και, πριν την ανιχνεύσει ένας detector, να 
+την απενεργοποιήσει αμέσως μετά. Αυτό κυρίως συμβαίνει για μικρές τιμές του \lstinline!N!
+καθώς για μεγαλύτερες οποιαδήποτε κλίση της \textit{usleep()} αρκεί για να 
+ανιχνευθούν οι αλλαγές.
+
+Παραλείποντας τελείως την κλήση της \lstinline!usleep()! παίρνουμε τις παρακάτω 
+μετρήσεις για τα ποσοστά των λαθών (αριθμός ενεργοποιήσεων σημάτων προς αριθμό 
+ανιχνεύσεων).
+
+\begin{center}
+\includegraphics[width=\textwidth]{plot/errorsp.pdf}
+\label{fig:errorsp}
+\end{center}
+
+%\begin{figure}%
+%    \centering
+%    \subfloat{{\includegraphics[width=0.4\textwidth]{plot/errorsp.pdf}}}%
+%    \qquad
+%    \subfloat{{\includegraphics[width=0.4\textwidth]{plot/errorsp.pdf}}}%
+%%    \caption{2 Figures side by side}%
+%    \label{fig:example}%
+%\end{figure}
+\section{Εξάλειψη σφαλμάτων}
+
+Τροποποιούμε τις συναρτήσεις των detectors έτσι ώστε να μηδενίσουμε τα ποσοστά των λαθών.
+ Αυτό γίνεται με την χρήση ενός συστήματος επικοινωνίας των detectors με την 
+\lstinline!SensorSignalReader()! και επομένως απαιτεί και την αλλαγή της τελευταίας.
+
+Για ευκολία compile με και χωρίς την χρήση του συστήματος αυτού, τα σχετικά κομμάτια του κώδικα περιλαμβάνονται μέσα στο macro \hyperref[lst:use_ack]{\lstinline!USE_ACK()!} το οποίο διαγράφει αυτά τα τμήματα αν δεν είναι ορισμένο το flag \lstinline!USE_ACKNOWLEDGEMENT!.
+
+\begin{lstlisting}[language=c, caption={Ορισμός του USE\_ACK()}, label={lst:use_ack}]
+#ifdef USE_ACKNOWLEDGEMENT
+    #define USE_ACK(x) x
+#else
+    #define USE_ACK(x)
+#endif
+\end{lstlisting}
+
+Χρησιμοποιείται ένα επιπλέον array \lstinline!acknowledged! με \lstinline!N! στοιχεία για την επικοινωνία μεταξύ των threads το οποίο είναι αρχικά ενεργοποιημένο (όλα τα στοιχεία ίσα με 1).
+Όπως φαίνεται στη 
+\hyperref[line:detector-ack]{γραμμή \ref*{line:detector-ack}}
+της
+\hyperref[lst:ChangeDetector-ack]{καταχώρησης \ref*{lst:ChangeDetector-ack}}
+όταν ανιχνεύεται μια αλλαγή σε ένα σήμα, το detector thread ενεργοποιεί το στοιχείο στη θέση \lstinline!target! του πίνακα \lstinline!acknowledged!.
+Οι συναρτήσεις 
+\lstinline!MultiChangeDetector()! και 
+\lstinline!BitfieldChangeDetector()! δουλεύουν με ανάλογο τρόπο.
+
+\begin{lstlisting}[language=c, caption={ChangeDetector() με χρήση array acknowledged}, escapechar=$, label={lst:ChangeDetector-ack}]
+void* ChangeDetector(void* arg) {
+    const parm* p = (parm*) arg;
+    const unsigned int target = p->tid;
+
+    /* loop stops with pthread_cancel() call at main() */
+    while (1) {
+        /* use a temporary variable in order to load signalArray[target] once in
+         * each loop */
+        unsigned int t;
+        /* active waiting until target value changes to 1 */
+        while ((t = signalArray[target]) == oldValues[target]) {}
+
+        oldValues[target] = t;
+        if (t) {
+            /* signal activated: 0->1 */
+            struct timeval tv;
+            gettimeofday(&tv, NULL);
+            /* print current time in usecs since the Epoch. */
+            printf("D %d %lu\n", target, (tv.tv_sec) * MILLION + (tv.tv_usec));
+        }
+
+        USE_ACK(acknowledged[target] = 1;)$\label{line:detector-ack}$
+    }
+}
+\end{lstlisting}
+
+Όταν το \hyperref[lst:reader-ack]{\lstinline!SensorSignalReader()!}
+επιλέγει ένα τυχαίο σήμα \lstinline!r!
+\hyperref[line:reader-wait-ack]{ελέγχει} αν το αντίστοιχο στοιχείο στον πίνακα 
+\lstinline!acknowledged! είναι ενεργοποιημένο.
+Αν δεν είναι, περιμένει μέχρι την ενεργοποίησή του και τελικά το ξαναμηδενίζει.
+
+\begin{lstlisting}[language=c, caption={SensorSignalReader() με χρήση array acknowledged}, escapechar=$, label={lst:reader-ack}]
+void* SensorSignalReader(void* arg) {
+    UNUSED(arg);
+    srand(time(NULL));
+
+    while (changing_signals) {
+        // t in [1, 10]
+        const unsigned int t = rand() % 10 + 1;
+        if (time_multiplier) {
+            usleep(t * time_multiplier);
+        }
+
+        const unsigned int r = rand() % N;
+
+        USE_ACK(while (!acknowledged[r]) {})$\label{line:reader-wait-ack}$
+        USE_ACK(acknowledged[r] = 0;)
+
+        if (toggle_signal(r)) {
+            printf("C %d %lu\n", r, (timeStamp[r].tv_sec) * MILLION +
+                   (timeStamp[r].tv_usec));
+        }
+    }
+    
+    pthread_exit(NULL);
+}
+\end{lstlisting}
+
+Με αυτόν τον τρόπο, δεν παράγονται λάθη για κανένα συνδυασμό ορισμάτων.
+Ωστόσο, καθώς υπάρχει δυνατότητα καθυστέρησης της \lstinline!SensorSignalReader()! επηρεάζεται ο αριθμός των σημάτων που αλλάζουν.
+
+\begin{center}
+	\includegraphics[width=\textwidth]{plot/changes}
+\end{center}
