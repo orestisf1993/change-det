@@ -2,24 +2,34 @@
 """This module parses the output log of pace and prints various statistical data.
 
     Attributes:
-        output_name: name of the log file to be read.
         TYPE_IDX: index of the signal type ("C"/"D").
         SID_IDX: index of the signal id.
         TIME_IDX: index of the time of the signal change/detection.
+        PRINT_ERRORS: If True errors will be printed in stderr.
+        CHECK_FILE_EXISTS: If True check if output/pickle files are already there.
+        result_fold: Where to save results.
+        OPTIONS: Contains the list of arguments to be used for the program calls.
 """
 
 import operator
 import re
 from sys import stderr
 import itertools
-import collections
 import numpy as np
+import pickle
+import os.path
 
 TYPE_IDX = 0
 SID_IDX = 1
 TIME_IDX = 2
 PRINT_ERRORS = False
 CHECK_FILE_EXISTS = True
+RESULTS_FOLD = 'results'
+OPTIONS = {"nthreads": [1, 2, 3, 6],
+           "time_mult": [1, 10, 100],
+           "execution_time": [10],
+           'N': [1, 2, 3, 6, 32, 100, 1000, 10000, 100000, 1000000]}
+
 
 def find_valid(flow):
     """Finds correct "CD" sub-sequences of changed and detected signals.
@@ -42,6 +52,7 @@ def find_errors(valid_idx, flow):
     """Finds the errors according to valid_idx and the flow
 
     Args:
+        valid_idx(list): List with the indeces of correct changes/detections.
         flow(iterable): The whole sequence for a specific signal id, sorted by time.
 
     Returns:
@@ -79,88 +90,51 @@ def find_errors(valid_idx, flow):
 
     return total_errors
 
-def set_filtered(get_fun, set_fun, op=operator.ge, compare_arg=0):
-    data = get_fun()
-    data = data[op(data, compare_arg)]
-    set_fun(data)
-    
 
-def plot_data(data):
-    """Plots the data collected by out.log
+def yieldor(file_name):
+    """Open a file and returns it's contents line by line after parsing it's content.
 
     Args:
-        data(SignalData): The data containing the diffs.
+        file_name(str): The filename.
+
+    Yields:
+        tuple: The next parsed line of the file.
 
     """
 
-    y = np.array([i.total_errors / i.total_elements * 100 for i in data])
-    x = range(len(y))
-
-    print("average: {0}, max: {1} most elements: {2}".format(np.average(y), max(y), max(i.total_elements for i in data)))
-    
-    import matplotlib.pyplot as plt
-    import matplotlib as mpl
-    import latexify
-
-    latexify.latexify(mpl)
-
-    t = plt.subplots(nrows=1)
-    fig = t[0]
-    ax = t[1]
-
-    ax.set_xlabel("Signal ID")
-    ax.set_ylabel("Error percentage")
-    ax.set_title("Error percentage for each signal id")
-
-    
-    # ~ ax.plot(x, y, 'ro', linewidth=0.1)
-    ax.scatter(x,y,s=0.1)
-    set_filtered(ax.get_yticks, ax.set_yticks)
-    set_filtered(ax.get_xticks, ax.set_xticks)
-    ax.set_xlim(left=0, right=max(x)*1.01)
-
-    # normal scale
-    # ~ ax.set_ylim(bottom=-max(y)/10, top=max(y)*1.01)
-    
-    # symlog scale
-    ax.set_yscale('symlog')
-    from math import log
-    ax.set_ylim(bottom=-0.1)    
-    
-    plt.tight_layout()
-    latexify.format_axes(ax)
-    plt.savefig("image.pdf")
-    
+    file_object = open(file_name)
+    for line in file_object:
+        yield tuple(line[0]) + tuple(map(int, line[2:].split()))
+    file_object.close()
 
 
 def process_output(output_name='out.log'):
-    with open(output_name) as log_file:
-        log_string = log_file.read().split('\n')
-        log_splitted = (
-            tuple(line[0]) +    # line[0] is 'C' or 'D'
-            tuple(map(int, line[2:].split()))
-            # tuple(int(x) for x in line[2:].split()) <- slower
-            for line in log_string if line
-        )
-        del log_string
+    """Process the output file and calculate statistical data.
 
+    Args:
+        output_name: The filename of the output file.
+
+    Returns:
+        tuple: Contains the total delay, total signal changes, total errors,
+            total signals, average delay between 2 changes, numpy array with all the delay times.
+
+    """
     # group entries by their signal id
     log_grouped = itertools.groupby(
-        sorted(log_splitted, key=operator.itemgetter(SID_IDX)),
+        sorted(yieldor(output_name), key=operator.itemgetter(SID_IDX)),
         operator.itemgetter(SID_IDX)
     )
 
-    SignalData = collections.namedtuple(    # pylint: disable=C0103
-        'SignalData', 'diff total_elements total_errors'
-    )
+    stats = {
+        "time_sum": 0,
+        "errors_sum": 0,
+        "signals_sum": 0,
+        "total_changes": 0,
+        "valid_changes": 0,
+        "change_delay": 0,
+        "all_delays": []
+    }
 
-    time_sum = 0
-    errors_sum = 0
-    signals_sum = 0
-    total_changes = 0
-    valid_changes = 0
-    change_delay = 0
-    signal_data = []
     for _, flow in log_grouped:
         flow = sorted(flow,
                       key=lambda x: 10 * x[TIME_IDX] - (x[TYPE_IDX] == 'C'))
@@ -168,28 +142,24 @@ def process_output(output_name='out.log'):
         total_elements = len(flow)
         if total_elements:
             valid_idx = find_valid(flow)
-    
+
             total_errors = find_errors(valid_idx, flow)
             diff = np.array([flow[i + 1][TIME_IDX] - flow[i][TIME_IDX]
                              for i in valid_idx])
 
-            signal_data.append(SignalData(diff, total_elements, total_errors))
-
-            if len(diff):
-                max_idx = np.argmax(diff)
-                if diff[max_idx] > 50:
-                    print("{0}: max diff = {1} at {2} => {3}".format(_, diff[max_idx], max_idx, flow[valid_idx[max_idx]]), file=stderr)
+            stats['all_delays'].append(diff)
             changed = [x for x in flow if x[TYPE_IDX] == 'C']
-            
-            time_sum += sum(diff)
-            errors_sum += total_errors
-            signals_sum += total_elements
-            total_changes += len(changed)
-            valid_changes += len(valid_idx)
-            change_delay += sum([changed[i+1][TIME_IDX] - changed[i][TIME_IDX] for i in range(len(changed)-1)])
-    change_delay = change_delay / total_changes
-    if valid_changes:
-        delay = time_sum / valid_changes
+
+            stats['time_sum'] += sum(diff)
+            stats['errors_sum'] += total_errors
+            stats['signals_sum'] += total_elements
+            stats['total_changes'] += len(changed)
+            stats['valid_changes'] += len(valid_idx)
+            stats['change_delay'] += sum([changed[i + 1][TIME_IDX] - changed[i][TIME_IDX]
+                                          for i in range(len(changed) - 1)])
+    stats['change_delay'] = stats['change_delay'] / stats['total_changes']
+    if stats['valid_changes']:
+        delay = stats['time_sum'] / stats['valid_changes']
     else:
         delay = "No valid detections"
     print(
@@ -200,58 +170,121 @@ def process_output(output_name='out.log'):
         "Total errors: {4}\n"
         "Error percentage: {5}%\n"
         "Average delay between changes for the same signal: {6} usec".format(
-            time_sum,
+            stats['time_sum'],
             delay,
-            total_changes,
-            signals_sum - total_changes,
-            errors_sum,
-            errors_sum / signals_sum * 100,
-            change_delay
+            stats['total_changes'],
+            stats['signals_sum'] - stats['total_changes'],
+            stats['errors_sum'],
+            stats['errors_sum'] / stats['signals_sum'] * 100,
+            stats['change_delay']
         )
     )
 
-    return (delay, total_changes, errors_sum / signals_sum * 100, change_delay)
-    
-def execute_pace(arguments):
-    from subprocess import call
-    import os.path
+    return (
+        delay,
+        stats['total_changes'],
+        stats['errors_sum'],
+        stats['signals_sum'],
+        stats['change_delay'],
+        stats['all_delays'])
 
-    n = arguments['N']
+
+
+def remove_garbage(fname):
+    """Remove a file if it exists
+
+    Args:
+        fname: The filename of the file.
+
+    """
+    # make sure we don't leave a garbage file
+    from os import remove
+    if os.path.isfile(fname):
+        remove(fname)
+    raise
+
+
+def execute_pace(arguments, extra_code):
+    """Execute the program.
+
+    Args:
+        arguments(dict): The arguments to pass to pace.
+
+    Returns:
+        str: The filename of the output file.
+        extra_code(str): extra code to be appended to RESULTS_FOLD.
+    """
+    from subprocess import call
+
+    n_signals = arguments['N']
     time_mult = arguments['time_mult']
     nthreads = arguments['nthreads']
     execution_time = arguments['execution_time']
-    
-    fname = r"results/out{0}_{1}_{2}_{3}.log".format(n, time_mult, execution_time, nthreads)
+
+    fname = RESULTS_FOLD + extra_code + \
+        r"/out{0}_{1}_{2}_{3}.log".format(n_signals, time_mult, execution_time, nthreads)
     if not (CHECK_FILE_EXISTS and os.path.isfile(fname)):
-        cmd = r"./pace {0} {1} {2} {3} > {4}".format(n, time_mult, execution_time, nthreads, fname)
+        cmd = r"./pace" + \
+            " {0} {1} {2} {3} > {4}".format(n_signals, time_mult, execution_time, nthreads, fname)
         print(cmd, file=stderr)
         try:
             call(cmd, shell=True)
-        except:
-            # make sure we don't leave a garbage file
-            from os import remove
-            remove(fname)
+        except Exception:
+            remove_garbage(fname)
             raise
     return fname
-    
-def execute_all():
-    options = {"nthreads": [1, 2, 4, 8],
-               "time_mult": [0, 10, 100, 1000, 10000],
-               "execution_time": [1],
-               'N': list(range(1,8)) + list(range(8, 32, 4)) + [32, 10**2, 10**3, 10**4]
-               }
-    for t in itertools.product(*options.values()):
-        arguments = {key: t[idx] for idx, key in enumerate(options.keys())}
-        output_name = execute_pace(arguments)
-        print(output_name, file=stderr)
-        delay, total_changes, error_p, ch_delay = process_output(output_name)
-    
+
+
+def execution_thread(combination, extra_code):
+    """Handle the execution of the program for a set of options.
+
+    Args:
+        combination: A combination of the lists in OPTIONS.
+        extra_code(str): extra code to be appended to RESULTS_FOLD.
+
+    """
+
+    arguments = {key: combination[idx]
+                 for idx, key in enumerate(OPTIONS.keys())}
+    if arguments["N"] > arguments["nthreads"]:
+        return
+    output_name = execute_pace(arguments, extra_code)
+    print("produced " + output_name, file=stderr)
+    fname = output_name.replace('results', 'proc')
+    if not (CHECK_FILE_EXISTS and os.path.isfile(fname)):
+        try:
+            res = process_output(output_name)
+            with open(fname, 'wb') as file_object:
+                pickle.dump(res, file_object)
+        except Exception:
+            remove_garbage(fname)
+            raise
+        print("checked " + output_name, file=stderr)
+
+
+def execute_all(extra_code):
+    """Calls execution_thread() for every possible combination in OPTIONS.
+
+    Args:
+        extra_code(str): extra code to be appended to RESULTS_FOLD.
+
+    """
+    for combination in itertools.product(*OPTIONS.values()):
+        execution_thread(combination, extra_code)
+
+
 def main():
+    """main function"""
     from sys import argv
-    if argv[1] == 'execute':
-        execute_all()
+    if len(argv) > 1 and argv[1] == 'execute':
+        extra_code = ""
+        if len(argv) > 2:
+            extra_code = argv[2]
+        execute_all(extra_code)
     else:
         output_name = 'out.log'
+        if len(argv) != 1:
+            output_name = argv[1]
         process_output(output_name)
 
 if __name__ == "__main__":
