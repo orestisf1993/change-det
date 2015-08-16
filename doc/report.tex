@@ -7,12 +7,10 @@
 % https://ctan.org/pkg/fontspec
 \usepackage{fontspec}
 \setmainfont{DejaVu Serif}
-% Change the title of contents list and figure list
 \renewcommand{\contentsname}{Περιεχόμενα}
 \renewcommand{\listfigurename}{Λίστα Σχημάτων}
-% Change the name of each figure
 \renewcommand{\figurename}{Σχήμα}
-\renewcommand{\lstlistingname}{Καταχώρηση}% Listing -> Algorithm
+\renewcommand{\lstlistingname}{Καταχώρηση}
 \renewcommand{\lstlistlistingname}{List of \lstlistingname s}
 
 \title{Εργασία στα Ενσωματωμένα Συστήματα Πραγματικού Χρόνου}
@@ -20,10 +18,6 @@
   Τομέας Ηλεκτρονικής,\\
   Τμήμα Ηλ. Μηχανικών / Μηχανικών ΗΥ,\\
   Αριστοτέλειο Πανεπιστήμιο Θεσσαλονίκης}
-%\date{} % TODO: update
-
-%\includeonly{sync-problems} % delete for release version
-%\includeonly{multithread} % delete for release version
 
 \begin{document}
 \maketitle
@@ -35,11 +29,17 @@
 \chapter*{Δομή του Project} \label{project-structure}
 
 \begin{description}
+	\item[doc/] Φάκελος με τα *.tex αρχεία για την παραγωγή της αναφοράς.
+	\item[doc/plot/] Φάκελος με τα αρχεία των γραφημάτων.
+	\item[assigment] Η εκφώνηση.
+	\item[pace.c] Ο κώδικας του προγράμματος σε c.
 	\item[report.pdf] Αυτή η αναφορά.
+	\item[script.py] Script σε python3 για την παραγωγή δεδομένων και τον έλεγχό τους.
 \end{description}
 
 \include{intro}
 \include{multithread}
 \include{sync-problems}
+\include{results}
 
 \end{document}
