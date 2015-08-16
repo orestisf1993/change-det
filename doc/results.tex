@@ -1,0 +1,38 @@
+\chapter{Μετρήσεις}
+Στο \hyperref[fig:1compare]{σχήμα \ref*{fig:1compare}} φαίνεται το ποσοστό των σημάτων τα οποία ανιχνεύτηκαν σε χρόνο μικρότερο ή ίσο του 1μsec.
+
+\begin{figure}[h]
+    \centering
+    \subfloat[χωρίς χρήση acknoweldged]{{\includegraphics[width=0.5\textwidth]{plot/1compare_00_10.pdf}}}%
+    \subfloat[με χρήση acknoweldged]{{\includegraphics[width=0.5\textwidth]{plot/1compare_10_10.pdf}}}%
+    \caption{Ποσοστό αποκρίσεων που είναι μικρότερες του 1 μsec για την ανίχνευση N σημάτων με TIME\_MULTIPLIER = 10.}
+    \label{fig:1compare}
+\end{figure}
+
+Στα γραφήματα του \hyperref[fig:delay]{σχήματος \ref*{fig:delay}}
+φαίνεται η εξέλιξη των μέσων τιμών της απόκρισης ως προς το \lstinline!N!. 
+
+\begin{figure}[h]
+    \centering
+    \subfloat[χωρίς χρήση acknoweldged]{{\includegraphics[width=0.5\textwidth]{plot/delay00_1.pdf}}}
+    \subfloat[με χρήση acknoweldged]{{\includegraphics[width=0.5\textwidth]{plot/delay10_1.pdf}}}
+    
+    \subfloat[χωρίς χρήση acknoweldged]{{\includegraphics[width=0.5\textwidth]{plot/delay00_10.pdf}}}
+    \subfloat[με χρήση acknoweldged]{{\includegraphics[width=0.5\textwidth]{plot/delay10_10.pdf}}}
+    
+    \subfloat[χωρίς χρήση acknoweldged]{{\includegraphics[width=0.5\textwidth]{plot/delay00_100.pdf}}}
+    \subfloat[με χρήση acknoweldged]{{\includegraphics[width=0.5\textwidth]{plot/delay10_100.pdf}}}
+    \caption{Μέση απόκριση (μsec) για την ανίχνευση N σημάτων σε ημι-λογαριθμική κλίμακα.}
+    \label{fig:delay}
+\end{figure}
+
+Στις υπόλοιπες μετρήσεις η επιλογή της χρήσης συνάρτησης detector γίνεται αυτόματα.
+Στο \hyperref[fig:bit_multi]{σχήμα \ref*{fig:bit_multi}} φαίνεται η διαφορά στις επιδόσεις των
+\lstinline!MultiChangeDetector())! και \lstinline!BitfieldChangeDetector()! όταν χειροκίνητα επιλέγουμε μια από τις δύο.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{plot/delay_bit_mult.pdf}
+    \caption{Σύγκριση των συναρτήσεων \lstinline!MultiChangeDetector())! και \lstinline!BitfieldChangeDetector()!}
+    \label{fig:bit_multi}
+\end{figure}
