@@ -10,46 +10,44 @@
 /* TODO: different executables for each version: */
 /* a) initial b) multi w/o ack c) multi w/ ack */
 
+#include <limits.h>
 #include <pthread.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <sys/time.h>
 #include <time.h>
-#include <limits.h>
+#include <unistd.h>
 
 #define MILLION 1000000
-#define DEFAULT_EXECUTION_TIME 20  /* default was 20 */
-#define DEFAULT_TIME_MULTIPLIER 100000  /* default was 100000 */
+#define DEFAULT_EXECUTION_TIME 20      /* default was 20 */
+#define DEFAULT_TIME_MULTIPLIER 100000 /* default was 100000 */
 #define DEFAULT_REQUESTED_THREADS 4
 
-#define UNUSED(x) ((void) x)
+#define UNUSED(x) ((void)x)
 
-#define INT_BIT (sizeof (int) * CHAR_BIT)
+#define INT_BIT (sizeof(int) * CHAR_BIT)
 
-typedef struct {
-    unsigned int tid;
-} parm;
+typedef struct { unsigned int tid; } parm;
 
-static volatile unsigned int* signalArray;
-static unsigned int* oldValues;
+static volatile unsigned int *signalArray;
+static unsigned int *oldValues;
 
 #ifdef USE_ACKNOWLEDGEMENT
-    #define USE_ACK(x) x
+#define USE_ACK(x) x
 
-    #ifdef USE_CONDITION_VARIABLES
-        #define USE_CV(x) x
-    #else
-        #define USE_CV(x)
-    #endif
+#ifdef USE_CONDITION_VARIABLES
+#define USE_CV(x) x
 #else
-    #define USE_ACK(x)
-    #define USE_CV(x)
+#define USE_CV(x)
+#endif
+#else
+#define USE_ACK(x)
+#define USE_CV(x)
 #endif
 
-USE_ACK(static volatile unsigned int* acknowledged;)
+USE_ACK(static volatile unsigned int *acknowledged;)
 
-static struct timeval* timeStamp;
+static struct timeval *timeStamp;
 
 static unsigned int N;
 static int use_bitfields;
@@ -64,17 +62,17 @@ static unsigned int requested_threads = DEFAULT_REQUESTED_THREADS;
  * and signals' values stop changing before cancelling the detectors. */
 static volatile int changing_signals = 1;
 
-void* SensorSignalReader(void* args);
-void* ChangeDetector(void* args);
-void* MultiChangeDetector(void* arg);
-void* BitfieldChangeDetector(void* arg);
+void *SensorSignalReader(void *arg);
+void *ChangeDetector(void *arg);
+void *MultiChangeDetector(void *arg);
+void *BitfieldChangeDetector(void *arg);
 unsigned int toggle_signal(unsigned int r);
 unsigned int msb_changed(unsigned int current, unsigned int old);
 
-USE_CV(static pthread_mutex_t* signal_mutex;)
-USE_CV(static pthread_cond_t* signal_cv;)
+USE_CV(static pthread_mutex_t *signal_mutex;)
+USE_CV(static pthread_cond_t *signal_cv;)
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     /* usage prompt and exit */
     if (argc < 2) {
         printf("Usage: %s N T E NTHR\n"
@@ -83,8 +81,8 @@ int main(int argc, char** argv) {
                "        T(optional): time multiplier. Signal interval between T"
                " and 10 * T usec\n"
                "        E(optional): execution duration\n"
-               "        NTHR(optional): number of threads\n"
-               , argv[0]);
+               "        NTHR(optional): number of threads\n",
+               argv[0]);
         return 1;
     }
 
@@ -96,15 +94,14 @@ int main(int argc, char** argv) {
     if (argc > 3) {
         execution_time = (unsigned int)strtoul(argv[3], NULL, 0);
     }
-    if (argc > 4){
+    if (argc > 4) {
         requested_threads = (unsigned int)strtoul(argv[4], NULL, 0);
     }
-    
 
     use_bitfields = (N / requested_threads) >= INT_BIT;
     use_multis = (N > requested_threads) && (!use_bitfields);
 
-    void* (*target_function)(void*);
+    void *(*target_function)(void *);
     unsigned int open_threads;
 
     if (use_bitfields) {
@@ -121,11 +118,8 @@ int main(int argc, char** argv) {
         total_N = N;
     }
 
-    fprintf(stderr, "open threads: %d array elements: %u actual signals: %u\n",
-            open_threads,
-            total_N, N);
-    fprintf(stderr, "use_bitfields: %d use_multis: %d\n", use_bitfields,
-            use_multis);
+    fprintf(stderr, "open threads: %d array elements: %u actual signals: %u\n", open_threads, total_N, N);
+    fprintf(stderr, "use_bitfields: %d use_multis: %d\n", use_bitfields, use_multis);
 
     /* Allocate signal, time-stamp arrays and thread handles. */
     signalArray = calloc(total_N, sizeof(int));
@@ -135,22 +129,20 @@ int main(int argc, char** argv) {
     USE_ACK(acknowledged = malloc(N * sizeof(int));)
     USE_ACK(for (unsigned int i = 0; i < N; i++) acknowledged[i] = 1;)
 
-    parm* p = malloc(open_threads * sizeof(parm));
+    parm *p = malloc(open_threads * sizeof(parm));
     pthread_t sigGen;
-    pthread_t* sigDet = malloc(open_threads * sizeof(pthread_t));
+    pthread_t *sigDet = malloc(open_threads * sizeof(pthread_t));
 
     USE_CV(signal_mutex = malloc(N * sizeof(pthread_mutex_t));)
     USE_CV(signal_cv = malloc(N * sizeof(pthread_cond_t));)
 
     /* Initialize mutex and condition variable objects */
-    USE_CV(for (unsigned int i = 0; i < N; i++)
-           pthread_mutex_init(&signal_mutex[i], NULL);)
-    USE_CV(for (unsigned int i = 0; i < N; i++)
-           pthread_cond_init(&signal_cv[i], NULL);)
+    USE_CV(for (unsigned int i = 0; i < N; i++) pthread_mutex_init(&signal_mutex[i], NULL);)
+    USE_CV(for (unsigned int i = 0; i < N; i++) pthread_cond_init(&signal_cv[i], NULL);)
 
     for (unsigned int i = 0; i < open_threads; i++) {
         p[i].tid = i;
-        pthread_create(&sigDet[i], NULL, target_function, (void*) &p[i]);
+        pthread_create(&sigDet[i], NULL, target_function, (void *)&p[i]);
     }
 
     pthread_create(&sigGen, NULL, SensorSignalReader, NULL);
@@ -164,10 +156,10 @@ int main(int argc, char** argv) {
     pthread_join(sigGen, NULL);
     fprintf(stderr, "joined\n");
 
-    #ifndef USE_ACKNOWLEDGEMENT
+#ifndef USE_ACKNOWLEDGEMENT
     /* Allow the detectors to find the last changes. */
     usleep(500);
-    #endif
+#endif
 
     for (unsigned int i = 0; i < open_threads; i++) {
         pthread_cancel(sigDet[i]);
@@ -191,13 +183,13 @@ unsigned int toggle_signal(unsigned int r) {
         signalArray[array_idx] ^= 1 << bit_idx;
 
         return return_value;
-    } else {
+    }
         gettimeofday(&timeStamp[r], NULL);
         return signalArray[r] ^= 1;
-    }
+
 }
 
-void* SensorSignalReader(void* arg) {
+void *SensorSignalReader(void *arg) {
     UNUSED(arg);
     srand(time(NULL));
 
@@ -211,14 +203,11 @@ void* SensorSignalReader(void* arg) {
         const unsigned int r = rand() % N;
 
         USE_CV(pthread_mutex_lock(&signal_mutex[r]);)
-        USE_ACK(while (!acknowledged[r]) {
-        USE_CV(pthread_cond_wait(&signal_cv[r], &signal_mutex[r]);)
-        })
+        USE_ACK(while (!acknowledged[r]) { USE_CV(pthread_cond_wait(&signal_cv[r], &signal_mutex[r]);) })
         USE_ACK(acknowledged[r] = 0;)
 
         if (toggle_signal(r)) {
-            printf("C %d %lu\n", r, (timeStamp[r].tv_sec) * MILLION +
-                   (timeStamp[r].tv_usec));
+            printf("C %d %lu\n", r, (timeStamp[r].tv_sec) * MILLION + (timeStamp[r].tv_usec));
         }
 
         USE_CV(pthread_mutex_unlock(&signal_mutex[r]);)
@@ -227,8 +216,8 @@ void* SensorSignalReader(void* arg) {
     pthread_exit(NULL);
 }
 
-void* ChangeDetector(void* arg) {
-    const parm* p = (parm*) arg;
+void *ChangeDetector(void *arg) {
+    const parm *p = (parm *)arg;
     const unsigned int target = p->tid;
 
     /* loop stops with pthread_cancel() call at main() */
@@ -237,7 +226,8 @@ void* ChangeDetector(void* arg) {
          * each loop */
         unsigned int t;
         /* active waiting until target value changes to 1 */
-        while ((t = signalArray[target]) == oldValues[target]) {}
+        while ((t = signalArray[target]) == oldValues[target]) {
+        }
 
         USE_CV(pthread_mutex_lock(&signal_mutex[target]));
 
@@ -257,11 +247,11 @@ void* ChangeDetector(void* arg) {
     }
 }
 
-void* MultiChangeDetector(void* arg) {
-    const parm* p = (parm*) arg;
+void *MultiChangeDetector(void *arg) {
+    const parm *p = (parm *)arg;
     const unsigned int tid = p->tid;
-    const unsigned int start = tid * (N / requested_threads) +
-                               (tid < N % requested_threads ? tid : N % requested_threads);
+    const unsigned int start =
+            tid * (N / requested_threads) + (tid < N % requested_threads ? tid : N % requested_threads);
     const unsigned int end = start + (N / requested_threads) + (tid < N % requested_threads);
     unsigned int target = start;
 
@@ -287,11 +277,9 @@ void* MultiChangeDetector(void* arg) {
 }
 
 #define LT(n) n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n
-static const char LogTable256[256] = {
-    -1, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
-    LT(4), LT(5), LT(5), LT(6), LT(6), LT(6), LT(6),
-    LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7)
-};
+static const char LogTable256[256] = {-1,    0,     1,     1,     2,     2,     2,     2,     3,     3,     3,
+                                      3,     3,     3,     3,     3,     LT(4), LT(5), LT(5), LT(6), LT(6), LT(6),
+                                      LT(6), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7), LT(7)};
 
 unsigned int msb_changed(unsigned int current, unsigned int old) {
     /* Use bit-wise XOR to find the different bits between signalArray[target] and
@@ -299,23 +287,21 @@ unsigned int msb_changed(unsigned int current, unsigned int old) {
      * Kinda faster than gcc's __builtin_clz() */
     /* diff is INT_BIT-bit word to find the log2 of */
     unsigned int diff = current ^ old;
-    unsigned int t, tt;  /* temporaries */
+    unsigned int t, tt; /* temporaries */
 
     if ((tt = diff >> 16)) {
         return (t = tt >> 8) ? 24 + LogTable256[t] : 16 + LogTable256[tt];
-    } else {
-        return (t = diff >> 8) ? 8 + LogTable256[t] : LogTable256[diff];
     }
+        return (t = diff >> 8) ? 8 + LogTable256[t] : LogTable256[diff];
+
 }
 
-void* BitfieldChangeDetector(void* arg) {
-    parm* p = (parm*) arg;
+void *BitfieldChangeDetector(void *arg) {
+    parm *p = (parm *)arg;
     const unsigned int tid = p->tid;
     const unsigned int start = tid * (total_N / requested_threads) +
-                               (tid < total_N % requested_threads ?
-                                tid : total_N % requested_threads);
-    const unsigned int end = start + (total_N / requested_threads) +
-                             (tid < total_N % requested_threads);
+                               (tid < total_N % requested_threads ? tid : total_N % requested_threads);
+    const unsigned int end = start + (total_N / requested_threads) + (tid < total_N % requested_threads);
     unsigned int target = start;
 
     while (1) {
